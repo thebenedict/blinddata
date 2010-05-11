@@ -1,0 +1,34 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <title>Blinddata Map</title>
+  <script type="text/javascript" src="http://www.google.com/jsapi"></script>
+  <script type="text/javascript">
+    google.load('visualization', '1', {packages: ['geomap']});
+
+    function drawVisualization() {
+      var data = new google.visualization.DataTable();
+      data.addRows({{ map_data|length }});
+      data.addColumn('string', 'Country');
+      data.addColumn('number', 'Datapoints');
+      data.addColumn('string', 'Name');
+      {% for name, code, number in map_data %}
+      data.setValue({{ forloop.counter0 }}, 0, '{{ code }}');
+      data.setValue({{ forloop.counter0 }}, 1, {{ number }});
+      data.setValue({{ forloop.counter0 }}, 2, '{{ name }}');
+      {% endfor %}
+      
+      var geomap = new google.visualization.GeoMap(
+          document.getElementById('visualization'));
+      geomap.draw(data, null);
+    }
+    
+
+    google.setOnLoadCallback(drawVisualization);
+  </script>
+</head>
+<body style="font-family: Arial;border: 0 none;">
+<div id="visualization" style="width: 800px; height: 400px;"></div>
+</body>
+</html>

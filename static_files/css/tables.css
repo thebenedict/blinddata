@@ -1,0 +1,121 @@
+/******************************************************
+   Lab Report CSS Tables ver. 1.1
+   Created by Louise Dade, 03 September 2005
+   http://www.classical-webdesigns.co.uk
+
+   You may use this style sheet, but please DO NOT
+   link to it directly (hot-link) in your own files.
+
+   Inc. Files: graph.png; fauxalpha.png; dlarrow.png
+******************************************************/
+
+/* We collapse borders because we don't want cell spacing.
+   We specify the font family here too, including a generic fall-back.
+   We specify a global table font size, using 'ems' because they are
+   resizable and take their relative value from the global stylesheet. */
+table {
+    border-collapse: collapse;
+    color: #000;
+    font-family: "Lucida Bright", "Times New Roman", serif;
+    font-size: 0.85em;
+}
+
+/* We add letter spacing because all caps makes the letters scrunchy
+   Also, left aligned because it was favoured by my university for table
+   captions, but yours might be different. Actually for a scientific paper,
+   the caption would be more detailed, resembling a table 'summary' */
+caption {
+    padding-bottom: 5px;
+    font-variant: small-caps;
+    letter-spacing: 0.1em;
+    text-align: left;
+}
+
+/* Table headers should be clear, but concise and discreet.
+   The double border separates the row from caption and the table body 
+   without needing a different background colour. Because we've specified
+   a text colour, we also specify a background colour (even though it's the
+   same as the main table colour) to accommodate personal stylesheets. */
+thead th {
+    border-top: 3px double #ccc;
+    border-bottom: 3px double #ccc;
+    padding: 2px 10px;
+    background-color: #fff;
+    color: #aaa;
+    text-align: left;
+    font-variant: small-caps;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+}
+
+/* We've given the table footer the same double border treatment for the
+   same reason.  It also acts as a nice "end of table" indicator. It's 
+   part of the data so we leave the text black. We also treat the header
+   and data the same way. */
+tfoot th, tfoot td {
+    border-top: 3px double #ccc;
+    border-bottom: 3px double #ccc;
+    padding: 2px 10px;
+    font-variant: small-caps;
+    letter-spacing: 0.1em;
+}
+
+/* We now revert to discreet single pixel horizontal borders to separate
+   each entry.  If your table content is numerical data, you might want the
+   vertical borders too, but I find it's visually more pleasing and easier to
+   read online when there is plenty of padding instead of borders. 
+   NOTE: we treat the headers and data cells the same here, visually it's clear
+   enough (header text is bold) and does not affect screen-reader software */
+tbody th, tbody td {
+    border-bottom: 1px dotted #ccc;
+    padding: 2px 10px;
+    text-align: left;
+    vertical-align: center;
+}
+
+/* Faux alpha transparency.  It's just a 16px square image (a PNG, but
+   could be a GIF) filled with a colour (I chose orange because it
+   contrasts pleasingly with blue - opposite on colour wheel) and then
+   every other pixel is filled with another colour (e.g. white) which is
+   made the transparent colour (ordinary transparency) - anything behind
+   the transparent pixels shows through and our wonderful brain fills in
+   the rest, thanks to Gestalt psychology.  Only really works when a solid
+   colour is required, such as table row rollovers. NOTE: IE doesn't like
+   tr:hover anyway so "pprrffffft!" to that! */
+tbody tr:hover {
+    background: url(fauxalpha.png) transparent repeat center;
+}
+
+/* CSS2 selectors - this just means the link in the fourth TD along
+   (the last column).  It simply adds a "download" icon and makes the
+   text all caps - will be ignored by older browsers. We also add a 
+   link colour (same as all other links) for personal stylesheets. */
+/*tbody td+td+td+td a {
+    padding-right: 16px;
+    background: url(dlarrow.png) transparent no-repeat bottom right;
+    color: #00d;
+    font-variant: small-caps;
+    letter-spacing: 0.1em;
+}*/
+
+/* Finally we have the link styles: background has been rendered as
+   transparent so the background image isn't blocked in an ugly way. */
+tbody a {
+    background-color: transparent;
+    color: #00d;
+    text-decoration: none;
+}
+tbody a:visited {
+    background-color: transparent;
+    color: #00a;
+}
+tbody a:hover {
+    background-color: transparent;
+    color: #00f;
+}
+tbody a:active {
+    background-color: transparent;
+    color: #f00;
+}
+
+/* EOF */
