@@ -1,7 +1,9 @@
 from django.shortcuts import render_to_response, get_object_or_404
 from django.http import HttpResponse
 from django.core.cache import cache
+from django.db.models import Count
 from quality.models import *
+
 
 ONE_YEAR = 31536000
 
@@ -52,10 +54,19 @@ def get_map_data(topic = None, subtopic = None, series = None):
         elements = Element.objects.filter(series__topic = topic)
     else:
         elements = Element.objects.all()
-    for c in countries:
-       if c.alpha2_code:
-            count = elements.filter(country__alpha2_code = c.alpha2_code).count()
-            map_data.append((c.name, c.alpha2_code, count))
+    
+    mycountries = dict((c.alpha2_code, c.name) for c in countries if c.alpha2_code)
+
+    #this is fast
+    for elem in elements.values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = mycountries.keys()):
+        map_data.append((mycountries[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
+    
+    #a slow way to do the same thing:
+    #for c in countries:
+    #   if c.alpha2_code:
+    #        print("Filtering %s elements for %s" % (elements.count(), c.name))
+    #        count = elements.filter(country__alpha2_code = c.alpha2_code).count()
+    #        map_data.append((c.name, c.alpha2_code, count))
     return map_data
     
 def get_table_data(topic = None, subtopic = None, series = None):
@@ -174,12 +185,27 @@ def get_subtopic_table(topic, subtopic):
         num_datapoints = series_elements.count()
         data_count = 0 # should end up the same as num_datapoints as a check?
         count_list = []
-        for y in range (1960, 2010):
-             #we don't have the query cached, so run and cache the result
-             print "I'm hitting the DB for year count: %s - %s" % (series_name, y)
-             e = series_elements.filter(year = y)
-             num = e.count()
-             count_list.append(num)
+        
+        #for y in range (1960, 2010):
+        #     #we don't have the query cached, so run and cache the result
+        #     print "I'm hitting the DB for year count: %s - %s" % (series_name, y)
+        #     e = series_elements.filter(year = y)
+        #     num = e.count()
+        #     count_list.append(num)
+        
+        counted_list = list(series_elements.values('year').annotate(count = Count('pk')).order_by('year'))		
+        #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
+        for c in counted_list:
+            if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
+                if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
+                    counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
+            else:
+                if  c['year'] != 2009:
+                    for yr in range(c['year'] + 1, 2010):
+                        counted_list.append({'count': 0, 'year': long(yr)})    
+        for c in counted_list:
+            count_list.append(c['count'])        
+        
         topic_dict = {"topic_name": topic, \
                       "subtopic_name": subtopic, \
                       "series_name": series_name, \
@@ -202,11 +228,37 @@ def get_series_detail(topic, subtopic, series):
     series_elements = Element.objects.filter(series__name = series)
     num_datapoints = series_elements.count()
     count_list = []
-    for y in range (1960, 2010):
-        print "I'm hitting the DB for year count: %s - %s" % (series, y)
-        e = series_elements.filter(year = y)
-        num = e.count()
-        count_list.append(num)
+    
+    #method 1 -- slow!
+    #for y in range (1960, 2010):
+        #print "doing year count: %s - %s" % (series, y)
+        #e = series_elements.filter(year = y)
+        #num = e.count()
+        #count_list.append(num)
+    
+    #method 2 -- slightly faster if at all
+    #counted = series_elements.values('year').annotate(count = Count('pk'))
+    #for y in range (1960, 2010):
+    #    print "doing year count for %s - %s" % (series, y)
+    #    try:
+    #        count_list.append(counted.values().get(year = y)['count'])
+    #    except:
+    #        count_list.append(0)
+    
+    #yes!
+    counted_list = list(series_elements.values('year').annotate(count = Count('pk')).order_by('year'))		
+    #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
+    for c in counted_list:
+        if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
+            if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
+                counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
+        else:
+            if  c['year'] != 2009:
+                for yr in range(c['year'] + 1, 2010):
+                    counted_list.append({'count': 0, 'year': long(yr)})    
+    for c in counted_list:
+        count_list.append(c['count'])    
+    
     series_dict = {"topic_name": topic, \
                   "subtopic_name": subtopic, \
                   "series_name": series, \
@@ -257,36 +309,42 @@ def crawl(request):
     for t in topics:
         print("generating topics list")
         topics_list.append([t['topic'], make_safe_name(t['topic'])])
-        for topic_name, topic_safe_name in topics_list:
-            print("requesting page for %s" % topic_safe_name)
-            page = index(request, topic_safe_name)
-            subtopics_list = []
-            print("filtering series for topic %s" % topic_safe_name)
-            topic_series = Series.objects.filter(topic = topic_name)
-            for ts in topic_series:
-                subtopics = list (Series.objects.values('sub1').distinct()) \
-                + list(Series.objects.values('sub2').distinct()) \
-                + list(Series.objects.values('sub3').distinct())
-                for sub in subtopics:
-                    print("Generating subtopics list for %s") % sub
-                    #would be much cleaner if subtopics were a many to many relationship
-                    if 'sub1' in sub:
-                        subtopics_list.append([sub['sub1'], make_safe_name(sub['sub1'])])
-                    if 'sub2' in sub:
-                        subtopics_list.append([sub['sub2'], make_safe_name(sub['sub2'])])
-                    if 'sub3' in sub:
-                        subtopics_list.append([sub['sub3'], make_safe_name(sub['sub3'])])
-                for sub_name, sub_safe_name in subtopics_list:
-                    print("requesting page for %s/%s" % (topic_safe_name, sub_safe_name))
-                    page = index(request, topic_safe_name, sub_safe_name)
-                    print("filtering series for subtopic %s" % sub_safe_name)
-                    subtopic_series = Series.objects.filter(sub1 = sub_name) \
-                    | Series.objects.filter(sub2 = sub_name) \
-                    | Series.objects.filter(sub3 = sub_name)
-                    for ss in subtopic_series:
-                        print("requesting page for %s/%s/%s" % (topic_safe_name, sub_safe_name, make_safe_name(ss.name)))
-                        page = index(request, topic_safe_name, sub_safe_name, make_safe_name(ss.name))
-        return HttpResponse("Generated Cache")
+	for topic_name, topic_safe_name in topics_list:
+		print("requesting page for %s" % topic_safe_name)
+		page = index(request, topic_safe_name)
+		print("filtering series for topic %s" % topic_safe_name)
+		topic_series = Series.objects.filter(topic = topic_name)
+		#would be much cleaner if subtopics were a many to many relationship
+		subtopics = list (topic_series.values('sub1').distinct()) \
+		+ list(topic_series.values('sub2').distinct()) \
+		+ list(topic_series.values('sub3').distinct())
+		subtopics_list = []
+		for sub in subtopics:
+			print("Generating subtopics list for %s") % sub
+			if 'sub1' in sub and sub.values()[0] is not unicode(''):
+				subtopics_list.append([sub['sub1'], make_safe_name(sub['sub1'])])
+			if 'sub2' in sub and sub.values()[0] is not unicode(''):
+				subtopics_list.append([sub['sub2'], make_safe_name(sub['sub2'])])
+			if 'sub3' in sub and sub.values()[0] is not unicode(''):
+				subtopics_list.append([sub['sub3'], make_safe_name(sub['sub3'])])
+			subtopic_count = len(subtopics_list)
+		for sub_name, sub_safe_name in subtopics_list:
+			print("%s subtopics remaining for %s" % (subtopic_count, topic_safe_name))               
+			print("requesting page for %s/%s" % (topic_safe_name, sub_safe_name))
+			page = index(request, topic_safe_name, sub_safe_name)
+			print("filtering series for subtopic %s" % sub_safe_name)
+			subtopic_series = Series.objects.filter(sub1 = sub_name) \
+			| Series.objects.filter(sub2 = sub_name) \
+			| Series.objects.filter(sub3 = sub_name)
+			#counter to monitor progress
+			series_count = subtopic_series.count()
+			for ss in subtopic_series:
+				print("%s series remaining for %s/%s" % (series_count, topic_safe_name, sub_safe_name))
+				print("requesting page for %s/%s/%s" % (topic_safe_name, sub_safe_name, make_safe_name(ss.name)))
+				page = index(request, topic_safe_name, sub_safe_name, make_safe_name(ss.name))
+				series_count -= 1
+			subtopic_count -=1
+    return HttpResponse("Generated Cache")
 
         
 
