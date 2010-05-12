@@ -55,9 +55,9 @@ def get_map_data(topic = None, subtopic = None, series = None):
     else:
         elements = Element.objects.all()
     
-    mycountries = dict((c.alpha2_code, c.name) for c in countries if c.alpha2_code)
-
     #this is fast
+    mycountries = dict((c.alpha2_code, c.name) for c in countries if c.alpha2_code)
+    
     for elem in elements.values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = mycountries.keys()):
         map_data.append((mycountries[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
     
@@ -67,6 +67,7 @@ def get_map_data(topic = None, subtopic = None, series = None):
     #        print("Filtering %s elements for %s" % (elements.count(), c.name))
     #        count = elements.filter(country__alpha2_code = c.alpha2_code).count()
     #        map_data.append((c.name, c.alpha2_code, count))
+    
     return map_data
     
 def get_table_data(topic = None, subtopic = None, series = None):
@@ -93,24 +94,41 @@ def get_summary_table():
         topic_name = t['topic']
         # create a machine readable 'safe' name to use in the detail url
         safe_topic_name = make_safe_name(topic_name)
-        elements = Element.objects.filter(series__topic = topic_name)
+        elements = Element.objects.filter(series__topic = topic_name).exclude(value = 0)
         num_series = Series.objects.filter(topic = topic_name).count()
         num_datapoints = elements.count()
         ave_datapoints = num_datapoints / num_series
         data_count = 0 # should end up the same as num_datapoints as a check?
         count_list = []
-        for y in range (1960, 2010):
-             e = cache.get("".join([topic_name, "_", str(y)]))
-             if e is None:
-                 #we don't have the query cached, so run and cache the result
-                 print "I'm hitting the DB for year count: %s - %s" % (topic_name, y)
-                 e = elements.filter(year = y)
-                 cache.set("".join([topic_name, "_", str(y)]), e, ONE_YEAR)
-             else:
-                 print "I used cache for year count: %s - %s" % (topic_name, y)
-             num = e.count()
-             count_list.append(num)
-             #data_count += num
+        #for y in range (1960, 2010):
+        #     e = cache.get("".join([topic_name, "_", str(y)]))
+        #     if e is None:
+        #         #we don't have the query cached, so run and cache the result
+        #         print "I'm hitting the DB for year count: %s - %s" % (topic_name, y)
+        #         e = elements.filter(year = y)
+        #         cache.set("".join([topic_name, "_", str(y)]), e, ONE_YEAR)
+        #     else:
+        #         print "I used cache for year count: %s - %s" % (topic_name, y)
+        #     num = e.count()
+        #     count_list.append(num)
+        #     #data_count += num
+        counted_list = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))		
+        #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
+        insert_point = 0
+        for yr in range(1960, counted_list[0]['year']):
+            counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
+            insert_point += 1
+        for c in counted_list:
+            if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
+                if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
+                    counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
+            else:
+                if  c['year'] != 2009:
+                    for yr in range(c['year'] + 1, 2010):
+                        counted_list.append({'count': 0, 'year': long(yr)})    
+        for c in counted_list:
+            count_list.append(c['count'])         
+        
         topic_dict = {"topic_name": topic_name, \
                       "safe_topic_name": safe_topic_name, \
                       "num_series": num_series, \
@@ -137,9 +155,9 @@ def get_topic_table(topic):
         if subtopic.values()[0] is not unicode(''):
             subtopic_name = subtopic.values()[0]
             safe_subtopic_name = make_safe_name(subtopic_name)
-            elements = topic_elements.filter(series__sub1 = subtopic_name) \
-            | topic_elements.filter (series__sub2 = subtopic_name) \
-            | topic_elements.filter (series__sub3 = subtopic_name)
+            elements = topic_elements.filter(series__sub1 = subtopic_name).exclude(value = 0) \
+            | topic_elements.filter (series__sub2 = subtopic_name).exclude(value = 0) \
+            | topic_elements.filter (series__sub3 = subtopic_name).exclude(value = 0)
             
             series = Series.objects.filter(sub1 = subtopic_name) \
             | Series.objects.filter(sub2 = subtopic_name) \
@@ -150,12 +168,30 @@ def get_topic_table(topic):
             ave_datapoints = num_datapoints / num_series
             data_count = 0 # should end up the same as num_datapoints as a check?
             count_list = []
-            for y in range (1960, 2010):
-                 #we don't have the query cached, so run and cache the result
-                 print "I'm hitting the DB for year count: %s - %s" % (subtopic_name, y)
-                 e = elements.filter(year = y)
-                 num = e.count()
-                 count_list.append(num)
+            #for y in range (1960, 2010):
+            #     #we don't have the query cached, so run and cache the result
+            #     print "I'm hitting the DB for year count: %s - %s" % (subtopic_name, y)
+            #     e = elements.filter(year = y)
+            #     num = e.count()
+            #     count_list.append(num)
+            
+            counted_list = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))		
+            #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
+            insert_point = 0
+            for yr in range(1960, counted_list[0]['year']):
+                counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
+                insert_point += 1
+            for c in counted_list:
+                if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
+                    if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
+                        counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
+                else:
+                    if  c['year'] != 2009:
+                        for yr in range(c['year'] + 1, 2010):
+                            counted_list.append({'count': 0, 'year': long(yr)})    
+            for c in counted_list:
+                count_list.append(c['count'])            
+            
             subtopic_dict = {"topic_name": topic, \
                              "subtopic_name": subtopic_name, \
                              "safe_topic_name": safe_topic_name, \
@@ -180,7 +216,7 @@ def get_subtopic_table(topic, subtopic):
     for series in subtopic_series:
         series_name = series.name
         safe_series_name = make_safe_name(series_name)
-        series_elements = Element.objects.filter(series__name = series_name)
+        series_elements = Element.objects.filter(series__name = series_name).exclude(value = 0)
            
         num_datapoints = series_elements.count()
         data_count = 0 # should end up the same as num_datapoints as a check?
@@ -195,6 +231,10 @@ def get_subtopic_table(topic, subtopic):
         
         counted_list = list(series_elements.values('year').annotate(count = Count('pk')).order_by('year'))		
         #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
+        insert_point = 0
+        for yr in range(1960, counted_list[0]['year']):
+            counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
+            insert_point += 1
         for c in counted_list:
             if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
                 if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
@@ -225,7 +265,7 @@ def get_series_detail(topic, subtopic, series):
     safe_subtopic_name = make_safe_name(subtopic)
     safe_series_name = make_safe_name(series)
     print "I'm hitting the DB for distinct elements for series %s" % series    
-    series_elements = Element.objects.filter(series__name = series)
+    series_elements = Element.objects.filter(series__name = series).exclude(value = 0)
     num_datapoints = series_elements.count()
     count_list = []
     
@@ -245,9 +285,13 @@ def get_series_detail(topic, subtopic, series):
     #    except:
     #        count_list.append(0)
     
-    #yes!
+    #method 3 -- yes!
     counted_list = list(series_elements.values('year').annotate(count = Count('pk')).order_by('year'))		
     #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
+    insert_point = 0
+    for yr in range(1960, counted_list[0]['year']):
+        counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
+        insert_point += 1
     for c in counted_list:
         if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
             if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
