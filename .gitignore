@@ -1,3 +1,4 @@
 *.pyc
 settings.py
-blinddata_cache/*
+/blinddata_cache
+/blinddata_cache_old
