@@ -1,3 +1,8 @@
+body {
+     background-color: #CCCCCC;
+     margin: 0px;
+}
+     
 h1 {
     font-family: "Lucida Bright", "Times New Roman", serif;
     padding: 5px;
@@ -22,5 +27,39 @@ p {
      font-weight: 200;
      padding: 2px;
      margin: 0px;
-     color: #AAAAAA;
+     color: #000000;
+}
+
+#header {
+     text-align: center;
+     background-color: #FFFFFF
+}
+
+#footer {
+    text-align: center;
+    padding-top: 10px;
+}
+
+#content {
+     width: 750px;
+     margin-left: auto;
+     margin-right: auto;
+     margin-top: 5px;
+     background-color: #FFFFFF;
+     border: 1px solid #AAAAAA;
+}
+
+#visualization {
+    width: 750px;
+    height: 347px;
+    padding-top: 5px;
+    position: relative;
+}
+
+hr {
+    margin: 0px;
+}
+
+table {
+    width: 750px;
 }

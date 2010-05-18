@@ -7,6 +7,9 @@ from quality.models import *
 
 ONE_YEAR = 31536000
 
+def test(request):
+    return render_to_response('quality/test.html')
+
 def index(request, safe_topic = None, safe_subtopic = None, safe_series = None):
     print ("In index")
     #generate URL safe names - it would probably be better to store these in the database

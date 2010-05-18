@@ -1,45 +1,6 @@
+{% extends "blinddata_base.html" %}
 {% load humanize %}
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <link rel="stylesheet" type="text/css" href="/static/css/style.css" />
-  <link rel="stylesheet" type="text/css" href="/static/css/tables.css" >  
-  <title>Blind Data: {{table_data.0.subtopic_name}}</title>
-  <script type="text/javascript" src="http://www.google.com/jsapi"></script>
-  <script type="text/javascript">
-    google.load('visualization', '1', {packages: ['geomap']});
-
-    function drawVisualization() {
-      var data = new google.visualization.DataTable();
-      data.addRows({{ map_data|length }});
-      data.addColumn('string', 'Country');
-      data.addColumn('number', 'Datapoints');
-      data.addColumn('string', 'Name');
-      {% for name, code, number in map_data %}
-      data.setValue({{ forloop.counter0 }}, 0, '{{ code }}');
-      data.setValue({{ forloop.counter0 }}, 1, {{ number }});
-      data.setValue({{ forloop.counter0 }}, 2, '{{ name }}');
-      {% endfor %}
-      
-      var options = {};
-      options['width'] = '750px';
-      
-      var geomap = new google.visualization.GeoMap(
-          document.getElementById('visualization'));
-      geomap.draw(data, options);
-    }
-    
-
-    google.setOnLoadCallback(drawVisualization);
-  </script>
-</head>
-<body>
-<center>
-    <div id="header">
-        <h1>BLIND DATA</h1>
-        <hr>
-    </div>
+{% block content %}
 <table>
     <thead>
         <tr>
@@ -58,11 +19,4 @@
         {% endfor %}
     </tbody>
 </table>
-<div id="visualization" style="width: 800px; height: 400px; padding-top: 10px"></div>
-    <div id ="footer">
-        <p>Blind Data is copyright 2010 by Michael Benedict. Data courtesy of the
-         World Bank Group. For more information see <a href="http://data.worldbank.org">http://data.worldbank.org</a></p>
-    </div>
-</center>
-</body>
-</html>
+{% endblock %}

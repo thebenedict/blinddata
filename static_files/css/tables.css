@@ -37,7 +37,7 @@ caption {
    a text colour, we also specify a background colour (even though it's the
    same as the main table colour) to accommodate personal stylesheets. */
 thead th {
-    border-top: 3px double #ccc;
+    /*border-top: 3px double #ccc;*/
     border-bottom: 3px double #ccc;
     padding: 2px 10px;
     background-color: #fff;
