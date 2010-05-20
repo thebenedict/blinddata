@@ -10,20 +10,28 @@ ONE_YEAR = 31536000
 def test(request):
     return render_to_response('quality/test.html')
 
-def index(request, safe_topic = None, safe_subtopic = None, safe_series = None):
+def index(request, safe_topic = None, safe_subtopic = None, safe_series = None, alpha2_code = None):
     print ("In index")
-    #generate URL safe names - it would probably be better to store these in the database
+    #fetch full names from URL safe names - it would probably be better to store these in the database
     topic = lookup_safe_name(safe_topic, 'topic')
     subtopic = lookup_safe_name(safe_subtopic, 'subtopic')
     series = lookup_safe_name(safe_series, 'series')
-    
+    try:
+        country = Country.objects.get(alpha2_code = alpha2_code.upper())
+        safe_name_list = [safe_topic, safe_subtopic, safe_series, country.alpha2_code.lower()]
+        print "I found country %s." % country.name
+    except:
+        country = None
+        safe_name_list = [safe_topic, safe_subtopic, safe_series]
+        print "No country found using alpha2_code %s" % alpha2_code
+        
     #generate the table or fetch from cache
-    safe_name_list = [safe_topic, safe_subtopic, safe_series]
     table_cache_key = '_'.join(s for s in safe_name_list if s is not None) + '_table'
     table_data = cache.get(table_cache_key)
+    print "trying cache for %s" % table_cache_key
     if table_data is None:
         print("Generating cache for %s.") % table_cache_key
-        table_data = get_table_data(topic, subtopic, series)
+        table_data = get_table_data(topic, subtopic, series, country)
         cache.set(table_cache_key, table_data, ONE_YEAR)
     
     #generate the map or fetch from cache    
@@ -31,7 +39,7 @@ def index(request, safe_topic = None, safe_subtopic = None, safe_series = None):
     map_data = cache.get(map_cache_key)
     if map_data is None:
         print("Generating cache for %s.") % map_cache_key
-        map_data = get_map_data(topic, subtopic, series)
+        map_data = get_map_data(topic, subtopic, series, country)
         cache.set(map_cache_key, map_data, ONE_YEAR)
     
     #return a page with the correct template
@@ -44,107 +52,77 @@ def index(request, safe_topic = None, safe_subtopic = None, safe_series = None):
     else:
         return render_to_response('quality/index.html', {"table_data": table_data, "map_data": map_data})
 
-def get_map_data(topic = None, subtopic = None, series = None):
+def get_map_data(topic = None, subtopic = None, series = None, country = None):
     map_data=[]
-    countries = Country.objects.all()
+
     if series is not None:
-        elements = Element.objects.filter(series__name = series)
+        elements = Element.objects.filter(series__name = series).exclude(value = 0)
     elif subtopic is not None:
-        elements = Element.objects.filter(series__sub1 = subtopic) \
-        | Element.objects.filter(series__sub2 = subtopic) \
-        | Element.objects.filter(series__sub3 = subtopic)
+        elements = Element.objects.filter(series__sub1 = subtopic).exclude(value = 0) \
+        | Element.objects.filter(series__sub2 = subtopic).exclude(value = 0) \
+        | Element.objects.filter(series__sub3 = subtopic).exclude(value = 0)
     elif topic is not None:
-        elements = Element.objects.filter(series__topic = topic)
+        elements = Element.objects.filter(series__topic = topic).exclude(value = 0)
     else:
-        elements = Element.objects.all()
+        elements = Element.objects.all().exclude(value = 0)
     
-    #this is fast
-    mycountries = dict((c.alpha2_code, c.name) for c in countries if c.alpha2_code)
+    if country is None:
+        print "country is None"
+        countries = Country.objects.all()
+        mycountries = dict((c.alpha2_code, c.name) for c in countries if c.alpha2_code)
+    else:
+        print "country is %s, alpha2_code is %s" % (country.name, country.alpha2_code)
+        countries = country
+        #odd that different syntax is needed in the following line for the one country case
+        mycountries = dict({country.alpha2_code: country.name})
+        elements = elements.filter(country = country)
     
     for elem in elements.values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = mycountries.keys()):
         map_data.append((mycountries[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
     
-    #a slow way to do the same thing:
-    #for c in countries:
-    #   if c.alpha2_code:
-    #        print("Filtering %s elements for %s" % (elements.count(), c.name))
-    #        count = elements.filter(country__alpha2_code = c.alpha2_code).count()
-    #        map_data.append((c.name, c.alpha2_code, count))
-    
     return map_data
     
-def get_table_data(topic = None, subtopic = None, series = None):
+def get_table_data(topic = None, subtopic = None, series = None, country = None):
     if series is not None:
-        table_data = get_series_detail(topic, subtopic, series)
+        table_data = get_series_detail(topic, subtopic, series, country)
     elif subtopic is not None:
-        table_data = get_subtopic_table(topic, subtopic)
+        table_data = get_subtopic_table(topic, subtopic, country)
     elif topic is not None:
-        table_data = get_topic_table(topic)
+        table_data = get_topic_table(topic, country)
     else:
-        table_data = get_summary_table()
+        table_data = get_summary_table(country)
     return table_data
 
-def get_summary_table():
+def get_summary_table(country):
     table_data = []
-    topics = cache.get("distinct_topics")
-    if topics is None:
-        topics = Series.objects.values('topic').distinct()
-        cache.set("distinct_topics", topics, ONE_YEAR)
-        print "I'm hitting the DB for distinct topics"
-    else:
-        print "I used cache for distinct topics"
+    topics = Series.objects.values('topic').distinct()
+    
     for t in topics:
         topic_name = t['topic']
         # create a machine readable 'safe' name to use in the detail url
         safe_topic_name = make_safe_name(topic_name)
         elements = Element.objects.filter(series__topic = topic_name).exclude(value = 0)
+        if country is not None:
+            elements = elements.filter(country = country)
+        count_list = get_count_list(elements)
         num_series = Series.objects.filter(topic = topic_name).count()
         num_datapoints = elements.count()
-        ave_datapoints = num_datapoints / num_series
-        data_count = 0 # should end up the same as num_datapoints as a check?
-        count_list = []
-        #for y in range (1960, 2010):
-        #     e = cache.get("".join([topic_name, "_", str(y)]))
-        #     if e is None:
-        #         #we don't have the query cached, so run and cache the result
-        #         print "I'm hitting the DB for year count: %s - %s" % (topic_name, y)
-        #         e = elements.filter(year = y)
-        #         cache.set("".join([topic_name, "_", str(y)]), e, ONE_YEAR)
-        #     else:
-        #         print "I used cache for year count: %s - %s" % (topic_name, y)
-        #     num = e.count()
-        #     count_list.append(num)
-        #     #data_count += num
-        counted_list = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))		
-        #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
-        insert_point = 0
-        for yr in range(1960, counted_list[0]['year']):
-            counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
-            insert_point += 1
-        for c in counted_list:
-            if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
-                if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
-                    counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
-            else:
-                if  c['year'] != 2009:
-                    for yr in range(c['year'] + 1, 2010):
-                        counted_list.append({'count': 0, 'year': long(yr)})    
-        for c in counted_list:
-            count_list.append(c['count'])         
+        ave_datapoints = num_datapoints / num_series                 
+        count_list = get_count_list(elements)
         
         topic_dict = {"topic_name": topic_name, \
                       "safe_topic_name": safe_topic_name, \
+                      "country": country, \
                       "num_series": num_series, \
                       "num_datapoints": num_datapoints, \
                       "ave_datapoints": ave_datapoints, \
-                      #"data_count": data_count, \
                       "count_list": count_list, \
                       "count_min": min(count_list), \
                       "count_max": max(count_list)}
         table_data.append(topic_dict)
     return table_data
 
-def get_topic_table(topic):
+def get_topic_table(topic, country):
     table_data = []
     safe_topic_name = make_safe_name(topic)
     topic_elements = Element.objects.filter(series__topic = topic)
@@ -162,6 +140,9 @@ def get_topic_table(topic):
             | topic_elements.filter (series__sub2 = subtopic_name).exclude(value = 0) \
             | topic_elements.filter (series__sub3 = subtopic_name).exclude(value = 0)
             
+            if country is not None:
+                elements = elements.filter(country = country)
+            
             series = Series.objects.filter(sub1 = subtopic_name) \
             | Series.objects.filter(sub2 = subtopic_name) \
             | Series.objects.filter(sub3 = subtopic_name)
@@ -169,31 +150,14 @@ def get_topic_table(topic):
             num_series = series.count()
             num_datapoints = elements.count()
             ave_datapoints = num_datapoints / num_series
-            data_count = 0 # should end up the same as num_datapoints as a check?
-            count_list = []
-            #for y in range (1960, 2010):
-            #     #we don't have the query cached, so run and cache the result
-            #     print "I'm hitting the DB for year count: %s - %s" % (subtopic_name, y)
-            #     e = elements.filter(year = y)
-            #     num = e.count()
-            #     count_list.append(num)
+            count_list = get_count_list(elements)        
             
-            counted_list = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))		
-            #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
-            insert_point = 0
-            for yr in range(1960, counted_list[0]['year']):
-                counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
-                insert_point += 1
-            for c in counted_list:
-                if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
-                    if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
-                        counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
-                else:
-                    if  c['year'] != 2009:
-                        for yr in range(c['year'] + 1, 2010):
-                            counted_list.append({'count': 0, 'year': long(yr)})    
-            for c in counted_list:
-                count_list.append(c['count'])            
+            try:
+                count_min = min(count_list)
+                count_max = max(count_list)
+            except:
+                count_min = 0
+                count_max = 0
             
             subtopic_dict = {"topic_name": topic, \
                              "subtopic_name": subtopic_name, \
@@ -203,12 +167,12 @@ def get_topic_table(topic):
                              "num_datapoints": num_datapoints, \
                              "ave_datapoints": ave_datapoints, \
                              "count_list": count_list, \
-                             "count_min": min(count_list), \
-                             "count_max": max(count_list)}
+                             "count_min": count_min, \
+                             "count_max": count_max}
             table_data.append(subtopic_dict)
     return table_data
     
-def get_subtopic_table(topic, subtopic):
+def get_subtopic_table(topic, subtopic, country):
     table_data = []
     safe_topic_name = make_safe_name(topic)
     safe_subtopic_name = make_safe_name(subtopic)
@@ -220,35 +184,21 @@ def get_subtopic_table(topic, subtopic):
         series_name = series.name
         safe_series_name = make_safe_name(series_name)
         series_elements = Element.objects.filter(series__name = series_name).exclude(value = 0)
-           
+
+        if country is not None:
+            series_elements = series_elements.filter(country = country)
+                
         num_datapoints = series_elements.count()
         data_count = 0 # should end up the same as num_datapoints as a check?
-        count_list = []
+        count_list = get_count_list(series_elements)
         
-        #for y in range (1960, 2010):
-        #     #we don't have the query cached, so run and cache the result
-        #     print "I'm hitting the DB for year count: %s - %s" % (series_name, y)
-        #     e = series_elements.filter(year = y)
-        #     num = e.count()
-        #     count_list.append(num)
-        
-        counted_list = list(series_elements.values('year').annotate(count = Count('pk')).order_by('year'))		
-        #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
-        insert_point = 0
-        for yr in range(1960, counted_list[0]['year']):
-            counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
-            insert_point += 1
-        for c in counted_list:
-            if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
-                if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
-                    counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
-            else:
-                if  c['year'] != 2009:
-                    for yr in range(c['year'] + 1, 2010):
-                        counted_list.append({'count': 0, 'year': long(yr)})    
-        for c in counted_list:
-            count_list.append(c['count'])        
-        
+        try:
+            count_min = min(count_list)
+            count_max = max(count_list)
+        except:
+            count_min = 0
+            count_max = 0
+         
         topic_dict = {"topic_name": topic, \
                       "subtopic_name": subtopic, \
                       "series_name": series_name, \
@@ -257,39 +207,50 @@ def get_subtopic_table(topic, subtopic):
                       "safe_series_name": safe_series_name, \
                       "num_datapoints": num_datapoints, \
                       "count_list": count_list, \
-                      "count_min": min(count_list), \
-                      "count_max": max(count_list)}
+                      "count_min": count_min, \
+                      "count_max": count_max}
         table_data.append(topic_dict)
     return table_data
 
-def get_series_detail(topic, subtopic, series):
+def get_series_detail(topic, subtopic, series, country):
     table_data = []
     safe_topic_name = make_safe_name(topic)
     safe_subtopic_name = make_safe_name(subtopic)
     safe_series_name = make_safe_name(series)
     print "I'm hitting the DB for distinct elements for series %s" % series    
     series_elements = Element.objects.filter(series__name = series).exclude(value = 0)
+
+    if country is not None:
+        series_elements = series_elements.filter(country = country)
+
     num_datapoints = series_elements.count()
+    count_list = get_count_list(series_elements)
+    
+    try:
+        count_min = min(count_list)
+        count_max = max(count_list)
+    except:
+        count_min = 0
+        count_max = 0    
+    
+    series_dict = {"topic_name": topic, \
+                  "subtopic_name": subtopic, \
+                  "series_name": series, \
+                  "safe_topic_name": safe_topic_name, \
+                  "safe_subtopic_name": safe_subtopic_name, \
+                  "safe_series_name": safe_series_name, \
+                  "num_datapoints": num_datapoints, \
+                  "count_list": count_list, \
+                  "count_min": count_min, \
+                  "count_max": count_max}
+    table_data.append(series_dict)
+    return table_data
+
+def get_count_list(elements):
     count_list = []
-    
-    #method 1 -- slow!
-    #for y in range (1960, 2010):
-        #print "doing year count: %s - %s" % (series, y)
-        #e = series_elements.filter(year = y)
-        #num = e.count()
-        #count_list.append(num)
-    
-    #method 2 -- slightly faster if at all
-    #counted = series_elements.values('year').annotate(count = Count('pk'))
-    #for y in range (1960, 2010):
-    #    print "doing year count for %s - %s" % (series, y)
-    #    try:
-    #        count_list.append(counted.values().get(year = y)['count'])
-    #    except:
-    #        count_list.append(0)
-    
-    #method 3 -- yes!
-    counted_list = list(series_elements.values('year').annotate(count = Count('pk')).order_by('year'))		
+    counted_list = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))
+    if len(counted_list) == 0:
+        return count_list
     #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
     insert_point = 0
     for yr in range(1960, counted_list[0]['year']):
@@ -304,20 +265,8 @@ def get_series_detail(topic, subtopic, series):
                 for yr in range(c['year'] + 1, 2010):
                     counted_list.append({'count': 0, 'year': long(yr)})    
     for c in counted_list:
-        count_list.append(c['count'])    
-    
-    series_dict = {"topic_name": topic, \
-                  "subtopic_name": subtopic, \
-                  "series_name": series, \
-                  "safe_topic_name": safe_topic_name, \
-                  "safe_subtopic_name": safe_subtopic_name, \
-                  "safe_series_name": safe_series_name, \
-                  "num_datapoints": num_datapoints, \
-                  "count_list": count_list, \
-                  "count_min": min(count_list), \
-                  "count_max": max(count_list)}
-    table_data.append(series_dict)
-    return table_data
+        count_list.append(c['count'])
+    return count_list
     
 def lookup_safe_name(safe_name, lookup_type = None):
     if lookup_type is None:

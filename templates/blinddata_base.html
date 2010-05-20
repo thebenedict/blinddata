@@ -24,7 +24,11 @@
       
       var options = {};
       options['width'] = '750px';
-      
+      {% if map_data|length_is:"1" %}
+          options['region'] = '{{ map_data.0.1 }}'
+          options['dataMode'] = 'markers';
+          options['showLegend'] = false;
+      {% endif %}
       var geomap = new google.visualization.GeoMap(
           document.getElementById('visualization'));
       geomap.draw(data, options);
