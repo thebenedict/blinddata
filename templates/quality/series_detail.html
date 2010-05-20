@@ -1,5 +1,14 @@
 {% extends "blinddata_base.html" %}
 {% load humanize %}
+{% block filters %}
+    <p>
+    <a href="/">Home</a> >
+    {% if map_data|length_is:"1" %}
+    <a href="/{{ map_data.0.1 }}/">{{ map_data.0.0 }}</a> <a href="/{{ table_data.0.safe_topic_name }}/{{ table_data.0.safe_subtopic_name }}/{{ table_data.0.safe_series_name }}/">(remove)</a> >
+    {% endif %}
+    <a href="{% if map_data|length_is:"1" %}/{{map_data.0.1}}{% endif %}/{{ table_data.0.safe_topic_name }}/">{{ table_data.0.topic_name }}</a> > <a href="{% if map_data|length_is:"1" %}/{{map_data.0.1}}{% endif %}/{{ table_data.0.safe_topic_name }}/{{ table_data.0.safe_subtopic_name }}/">{{  table_data.0.subtopic_name }}</a> > {{ table_data.0.series_name }}
+    </p>
+{% endblock %}
 {% block content %}
 <table>
     <thead>

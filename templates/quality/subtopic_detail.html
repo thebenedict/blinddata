@@ -1,5 +1,14 @@
 {% extends "blinddata_base.html" %}
 {% load humanize %}
+{% block filters %}
+    <p>
+    <a href="/">Home</a> >
+    {% if map_data|length_is:"1" %}
+    <a href="/{{ map_data.0.1 }}/">{{ map_data.0.0 }}</a> <a href="/{{ table_data.0.safe_topic_name }}/{{ table_data.0.safe_subtopic_name }}/">(remove)</a> >
+    {% endif %}
+     <a href="{% if map_data|length_is:"1" %}/{{map_data.0.1}}{% endif %}/{{ table_data.0.safe_topic_name }}/">{{ table_data.0.topic_name }}</a> > {{  table_data.0.subtopic_name }}
+    </p>
+{% endblock %}
 {% block content %}
 <table>
     <thead>
@@ -12,7 +21,7 @@
     <tbody>
         {% for line in table_data %}
             <tr>
-                <td><a href="http://thebenedict.dyndns.org:9000/blinddata/{{line.safe_topic_name}}/{{line.safe_subtopic_name}}/{{line.safe_series_name}}/">{{line.series_name}}</a></td>
+                <td><a href="{% if map_data|length_is:"1" %}/{{line.country.alpha2_code}}{% endif %}/{{line.safe_topic_name}}/{{line.safe_subtopic_name}}/{{line.safe_series_name}}/">{{line.series_name}}</a></td>
                 <td>{{line.num_datapoints|intcomma}}</td>
                 <td><img src="http://chart.apis.google.com/chart?chs=150x25&cht=ls&chco=0077CC&chf=bg,s,00000000&chds={{line.count_min}},{{line.count_max}}&chd=t:{% for c in line.count_list %}{% if not forloop.last %}{{c}},{% endif %}{% if forloop.last %}{{c}}{% endif %}{% endfor %}"></td>
             </tr>

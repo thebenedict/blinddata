@@ -7,25 +7,33 @@ h1 {
     font-family: "Lucida Bright", "Times New Roman", serif;
     padding: 5px;
     margin: 0px;
-    letter-spacing: 15px;
+    letter-spacing: 13px;
     font-weight: 100;
     font-size: 36px;
 }
 
 h2 {
-     font-size: 15px;
-     letter-spacing: 5px;
-     font-weight: 200;
-     padding: 2px;
+     font-size: 12px;
+     font-variant: small-caps;
+     font-weight: 300;
+     padding-top: 2px;
+     padding-bottom: 5px;
      margin: 0px;
-     font-style: italic;
      color: #AAAAAA;
 }
 
 p {
-     font-size: 12px;
+     font-size: 0.85em;
      font-weight: 200;
-     padding: 2px;
+     padding: 3px;
+     margin: 0px;
+     color: #000000;
+}
+
+smalltext {
+     font-size: 0.75em;
+     font-weight: 200;
+     padding: 3px;
      margin: 0px;
      color: #000000;
 }
@@ -38,6 +46,15 @@ p {
 #footer {
     text-align: center;
     padding-top: 10px;
+}
+
+#filters {
+     width: 750px;
+     margin-left:auto;
+     margin-right:auto;
+     margin-top:10px;
+     background-color: #FFFFFF;
+     border: 1px solid #AAAAAA;
 }
 
 #content {

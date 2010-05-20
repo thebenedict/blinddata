@@ -163,6 +163,7 @@ def get_topic_table(topic, country):
                              "subtopic_name": subtopic_name, \
                              "safe_topic_name": safe_topic_name, \
                              "safe_subtopic_name": safe_subtopic_name, \
+                             "country": country, \
                              "num_series": num_series, \
                              "num_datapoints": num_datapoints, \
                              "ave_datapoints": ave_datapoints, \
@@ -205,6 +206,7 @@ def get_subtopic_table(topic, subtopic, country):
                       "safe_topic_name": safe_topic_name, \
                       "safe_subtopic_name": safe_subtopic_name, \
                       "safe_series_name": safe_series_name, \
+                      "country": country, \
                       "num_datapoints": num_datapoints, \
                       "count_list": count_list, \
                       "count_min": count_min, \

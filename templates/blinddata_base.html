@@ -43,10 +43,14 @@
     <div id="header">
         {% block header %}
             <h1>BLIND DATA</h1>
-            <h2>Data Quantity Browser for the WDI and GDF</h2>
+            <h2>Quantity Browser for the WDI and GDF Datasets</h2>
             <hr>
         {% endblock %}
     </div>
+
+    <div id="filters">
+        {% block filters %}{% endblock %}
+    </div>  
 
     <div id="content">
         {% block content %}{% endblock %}
@@ -55,9 +59,9 @@
     
     <div id ="footer">
         {% block footer %}
-            <p>Blind Data is was made in 2010 by Michael Benedict. Data courtesy of the
+            <smalltext>Blind Data is was made in 2010 by Michael Benedict. Data courtesy of the
              World Bank Group. For more information see <a href ="http://data.worldbank.org">http://data.worldbank.org</a>
-             <br/><a href ="/blinddata/">home</a></p>
+             <br/><a href ="/">home</a></smalltext>
         {% endblock %}
     </div>
 </body>
