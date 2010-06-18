@@ -11,7 +11,7 @@ def test(request):
     return render_to_response('quality/test.html')
 
 def index(request, safe_topic = None, safe_subtopic = None, safe_series = None, alpha2_code = None):
-    print ("In index")
+    #print ("In index")
     #fetch full names from URL safe names - it would probably be better to store these in the database
     topic = lookup_safe_name(safe_topic, 'topic')
     subtopic = lookup_safe_name(safe_subtopic, 'subtopic')
@@ -19,18 +19,18 @@ def index(request, safe_topic = None, safe_subtopic = None, safe_series = None, 
     try:
         country = Country.objects.get(alpha2_code = alpha2_code.upper())
         safe_name_list = [safe_topic, safe_subtopic, safe_series, country.alpha2_code.lower()]
-        print "I found country %s." % country.name
+        #print "I found country %s." % country.name
     except:
         country = None
         safe_name_list = [safe_topic, safe_subtopic, safe_series]
-        print "No country found using alpha2_code %s" % alpha2_code
+        #print "No country found using alpha2_code %s" % alpha2_code
         
     #generate the table or fetch from cache
     table_cache_key = '_'.join(s for s in safe_name_list if s is not None) + '_table'
     table_data = cache.get(table_cache_key)
-    print "trying cache for %s" % table_cache_key
+    #print "trying cache for %s" % table_cache_key
     if table_data is None:
-        print("Generating cache for %s.") % table_cache_key
+        #print("Generating cache for %s.") % table_cache_key
         table_data = get_table_data(topic, subtopic, series, country)
         cache.set(table_cache_key, table_data, ONE_YEAR)
     
@@ -38,7 +38,7 @@ def index(request, safe_topic = None, safe_subtopic = None, safe_series = None, 
     map_cache_key = '_'.join(s for s in safe_name_list if s is not None) + '_map'
     map_data = cache.get(map_cache_key)
     if map_data is None:
-        print("Generating cache for %s.") % map_cache_key
+        #print("Generating cache for %s.") % map_cache_key
         map_data = get_map_data(topic, subtopic, series, country)
         cache.set(map_cache_key, map_data, ONE_YEAR)
     
@@ -67,11 +67,11 @@ def get_map_data(topic = None, subtopic = None, series = None, country = None):
         elements = Element.objects.all().exclude(value = 0)
     
     if country is None:
-        print "country is None"
+        #print "country is None"
         countries = Country.objects.all()
         mycountries = dict((c.alpha2_code, c.name) for c in countries if c.alpha2_code)
     else:
-        print "country is %s, alpha2_code is %s" % (country.name, country.alpha2_code)
+        #print "country is %s, alpha2_code is %s" % (country.name, country.alpha2_code)
         countries = country
         #odd that different syntax is needed in the following line for the one country case
         mycountries = dict({country.alpha2_code: country.name})
@@ -126,7 +126,7 @@ def get_topic_table(topic, country):
     table_data = []
     safe_topic_name = make_safe_name(topic)
     topic_elements = Element.objects.filter(series__topic = topic)
-    print "I'm hitting the DB for distinct subtopics"
+    #print "I'm hitting the DB for distinct subtopics"
     subtopics = list(topic_elements.values('series__sub1').distinct()) \
     + list(topic_elements.values('series__sub2').distinct()) \
     + list(topic_elements.values('series__sub3').distinct())
@@ -180,7 +180,7 @@ def get_subtopic_table(topic, subtopic, country):
     subtopic_series = Series.objects.filter(sub1 = subtopic) \
     | Series.objects.filter (sub2 = subtopic) \
     | Series.objects.filter (sub3 = subtopic)
-    print "I'm hitting the DB for distinct series for subtopic %s" % subtopic
+    #print "I'm hitting the DB for distinct series for subtopic %s" % subtopic
     for series in subtopic_series:
         series_name = series.name
         safe_series_name = make_safe_name(series_name)
@@ -219,7 +219,7 @@ def get_series_detail(topic, subtopic, series, country):
     safe_topic_name = make_safe_name(topic)
     safe_subtopic_name = make_safe_name(subtopic)
     safe_series_name = make_safe_name(series)
-    print "I'm hitting the DB for distinct elements for series %s" % series    
+    #print "I'm hitting the DB for distinct elements for series %s" % series    
     series_elements = Element.objects.filter(series__name = series).exclude(value = 0)
 
     if country is not None:
@@ -305,12 +305,12 @@ def crawl(request):
     topics_list = []
     topics = Series.objects.values('topic').distinct()
     for t in topics:
-        print("generating topics list")
+        #print("generating topics list")
         topics_list.append([t['topic'], make_safe_name(t['topic'])])
 	for topic_name, topic_safe_name in topics_list:
-		print("requesting page for %s" % topic_safe_name)
+		#print("requesting page for %s" % topic_safe_name)
 		page = index(request, topic_safe_name)
-		print("filtering series for topic %s" % topic_safe_name)
+		#print("filtering series for topic %s" % topic_safe_name)
 		topic_series = Series.objects.filter(topic = topic_name)
 		#would be much cleaner if subtopics were a many to many relationship
 		subtopics = list (topic_series.values('sub1').distinct()) \
@@ -318,7 +318,7 @@ def crawl(request):
 		+ list(topic_series.values('sub3').distinct())
 		subtopics_list = []
 		for sub in subtopics:
-			print("Generating subtopics list for %s") % sub
+			#print("Generating subtopics list for %s") % sub
 			if 'sub1' in sub and sub.values()[0] is not unicode(''):
 				subtopics_list.append([sub['sub1'], make_safe_name(sub['sub1'])])
 			if 'sub2' in sub and sub.values()[0] is not unicode(''):
@@ -327,19 +327,19 @@ def crawl(request):
 				subtopics_list.append([sub['sub3'], make_safe_name(sub['sub3'])])
 			subtopic_count = len(subtopics_list)
 		for sub_name, sub_safe_name in subtopics_list:
-			print("%s subtopics remaining for %s" % (subtopic_count, topic_safe_name))               
-			print("requesting page for %s/%s" % (topic_safe_name, sub_safe_name))
+			#print("%s subtopics remaining for %s" % (subtopic_count, topic_safe_name))               
+			#print("requesting page for %s/%s" % (topic_safe_name, sub_safe_name))
 			page = index(request, topic_safe_name, sub_safe_name)
-			print("filtering series for subtopic %s" % sub_safe_name)
+			#print("filtering series for subtopic %s" % sub_safe_name)
 			subtopic_series = Series.objects.filter(sub1 = sub_name) \
 			| Series.objects.filter(sub2 = sub_name) \
 			| Series.objects.filter(sub3 = sub_name)
 			#counter to monitor progress
 			series_count = subtopic_series.count()
 			for ss in subtopic_series:
-				print("%s series remaining for %s/%s" % (series_count, topic_safe_name, sub_safe_name))
-				print("requesting page for %s/%s/%s" % (topic_safe_name, sub_safe_name, make_safe_name(ss.name)))
-				page = index(request, topic_safe_name, sub_safe_name, make_safe_name(ss.name))
+			#	print("%s series remaining for %s/%s" % (series_count, topic_safe_name, sub_safe_name))
+			#	print("requesting page for %s/%s/%s" % (topic_safe_name, sub_safe_name, make_safe_name(ss.name)))
+			#	page = index(request, topic_safe_name, sub_safe_name, make_safe_name(ss.name))
 				series_count -= 1
 			subtopic_count -=1
     return HttpResponse("Generated Cache")

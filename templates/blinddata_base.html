@@ -24,6 +24,7 @@
       
       var options = {};
       options['width'] = '750px';
+      options['dataMode'] = 'regions';
       {% if map_data|length_is:"1" %}
           options['region'] = '{{ map_data.0.1 }}'
           options['dataMode'] = 'markers';
@@ -31,6 +32,32 @@
       {% endif %}
       var geomap = new google.visualization.GeoMap(
           document.getElementById('visualization'));
+          
+/*      google.visualization.events.addListner(geomap, 'select', function(){
+        alert('click');
+      });*/
+          
+/*      google.visualization.events.addListner(geomap, 'regionClick', function(e) {
+          alert('click! ' + e['region']);
+          //var rowindex = data.getFilteredRows([{column: 0, value: e['region']}]);
+          //var country_code = data.getValue(rowindex[0],0);
+      });*/
+      
+      google.visualization.events.addListener(geomap, 'regionClick', regionClickHandler);
+      
+      function regionClickHandler(e) {
+        var rowindex = data.getFilteredRows([{column: 0, value: e['region']}]);
+        var country_code = data.getValue(rowindex[0],0);
+        
+        //the above two lines work, the below two take two clicks on the map to do the same thing
+        //I don't understand why
+        //var country_data = geomap.getSelection();
+        //var country_code = data.getValue(country_data[0].row,0);
+        
+        location.href = "http://" + location.host + '/' + country_code + location.pathname;
+        geomap.setSelection();
+      }
+      
       geomap.draw(data, options);
     }
     
@@ -59,7 +86,7 @@
     
     <div id ="footer">
         {% block footer %}
-            <smalltext>Blind Data is was made in 2010 by Michael Benedict. Data courtesy of the
+            <smalltext>Blind Data was made in 2010 by Michael Benedict. Data courtesy of the
              World Bank Group. For more information see <a href ="http://data.worldbank.org">http://data.worldbank.org</a>
              <br/><a href ="/">home</a></smalltext>
         {% endblock %}
