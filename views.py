@@ -6,6 +6,8 @@ from quality.models import *
 
 
 ONE_YEAR = 31536000
+#total number of years the data set covers
+NUM_YEARS = 50
 
 def test(request):
     return render_to_response('quality/test.html')
@@ -107,18 +109,28 @@ def get_summary_table(country):
         count_list = get_count_list(elements)
         num_series = Series.objects.filter(topic = topic_name).count()
         num_datapoints = elements.count()
-        ave_datapoints = num_datapoints / num_series                 
+        if country is not None:
+            num_countries = 1
+        else:
+            num_countries = Country.objects.count()
+        percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * NUM_YEARS) * 100))
         count_list = get_count_list(elements)
-        
+        try:
+            count_min = min(count_list)
+            count_max = max(count_list)
+        except:
+            count_min = 0
+            count_max = 0
+            
         topic_dict = {"topic_name": topic_name, \
                       "safe_topic_name": safe_topic_name, \
                       "country": country, \
                       "num_series": num_series, \
                       "num_datapoints": num_datapoints, \
-                      "ave_datapoints": ave_datapoints, \
+                      "percent_complete": percent_complete, \
                       "count_list": count_list, \
-                      "count_min": min(count_list), \
-                      "count_max": max(count_list)}
+                      "count_min": count_min, \
+                      "count_max": count_max}
         table_data.append(topic_dict)
     return table_data
 
@@ -146,10 +158,15 @@ def get_topic_table(topic, country):
             series = Series.objects.filter(sub1 = subtopic_name) \
             | Series.objects.filter(sub2 = subtopic_name) \
             | Series.objects.filter(sub3 = subtopic_name)
-            
+         
             num_series = series.count()
             num_datapoints = elements.count()
+            if country is not None:
+                num_countries = 1
+            else:
+                num_countries = Country.objects.count()            
             ave_datapoints = num_datapoints / num_series
+            percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * NUM_YEARS) * 100))
             count_list = get_count_list(elements)        
             
             try:
@@ -166,7 +183,7 @@ def get_topic_table(topic, country):
                              "country": country, \
                              "num_series": num_series, \
                              "num_datapoints": num_datapoints, \
-                             "ave_datapoints": ave_datapoints, \
+                             "percent_complete": percent_complete, \
                              "count_list": count_list, \
                              "count_min": count_min, \
                              "count_max": count_max}
@@ -190,9 +207,13 @@ def get_subtopic_table(topic, subtopic, country):
             series_elements = series_elements.filter(country = country)
                 
         num_datapoints = series_elements.count()
-        data_count = 0 # should end up the same as num_datapoints as a check?
-        count_list = get_count_list(series_elements)
+        if country is not None:
+            num_countries = 1
+        else:
+            num_countries = Country.objects.count()
+        percent_complete = int(round(float(num_datapoints) / float(num_countries * NUM_YEARS) * 100))
         
+        count_list = get_count_list(series_elements)
         try:
             count_min = min(count_list)
             count_max = max(count_list)
@@ -208,6 +229,7 @@ def get_subtopic_table(topic, subtopic, country):
                       "safe_series_name": safe_series_name, \
                       "country": country, \
                       "num_datapoints": num_datapoints, \
+                      "percent_complete": percent_complete, \
                       "count_list": count_list, \
                       "count_min": count_min, \
                       "count_max": count_max}
@@ -226,6 +248,11 @@ def get_series_detail(topic, subtopic, series, country):
         series_elements = series_elements.filter(country = country)
 
     num_datapoints = series_elements.count()
+    if country is not None:
+        num_countries = 1
+    else:
+        num_countries = Country.objects.count()
+    percent_complete = int(round(float(num_datapoints) / float(num_countries * NUM_YEARS) * 100))    
     count_list = get_count_list(series_elements)
     
     try:
@@ -242,6 +269,7 @@ def get_series_detail(topic, subtopic, series, country):
                   "safe_subtopic_name": safe_subtopic_name, \
                   "safe_series_name": safe_series_name, \
                   "num_datapoints": num_datapoints, \
+                  "percent_complete": percent_complete, \
                   "count_list": count_list, \
                   "count_min": count_min, \
                   "count_max": count_max}

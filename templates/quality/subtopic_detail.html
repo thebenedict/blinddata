@@ -13,17 +13,19 @@
 <table>
     <thead>
         <tr>
-            <th>Series</th>
+            <th class="left">Series</th>
             <th># Datapoints</th>
+            <th>Completeness</th>
             <th>Points/Year (1960-2009)</th>
         </tr>
     </thead>
     <tbody>
         {% for line in table_data %}
             <tr>
-                <td><a href="{% if map_data|length_is:"1" %}/{{line.country.alpha2_code}}{% endif %}/{{line.safe_topic_name}}/{{line.safe_subtopic_name}}/{{line.safe_series_name}}/">{{line.series_name}}</a></td>
+                <td class="left"><a href="{% if map_data|length_is:"1" %}/{{line.country.alpha2_code}}{% endif %}/{{line.safe_topic_name}}/{{line.safe_subtopic_name}}/{{line.safe_series_name}}/">{{line.series_name}}</a></td>
                 <td>{{line.num_datapoints|intcomma}}</td>
-                <td><img src="http://chart.apis.google.com/chart?chs=150x25&cht=ls&chco=0077CC&chf=bg,s,00000000&chds={{line.count_min}},{{line.count_max}}&chd=t:{% for c in line.count_list %}{% if not forloop.last %}{{c}},{% endif %}{% if forloop.last %}{{c}}{% endif %}{% endfor %}"></td>
+                <td>{{line.percent_complete}}%</td>
+                <td><img src="http://chart.apis.google.com/chart?chs=170x25&cht=ls&chco=0077CC&chf=bg,s,00000000&chds={{line.count_min}},{{line.count_max}}&chd=t:{% for c in line.count_list %}{% if not forloop.last %}{{c}},{% endif %}{% if forloop.last %}{{c}}{% endif %}{% endfor %}"></td>
             </tr>
         {% endfor %}
     </tbody>

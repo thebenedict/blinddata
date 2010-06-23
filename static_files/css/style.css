@@ -13,9 +13,10 @@ h1 {
 }
 
 h2 {
-     font-size: 12px;
+     font-size: 14px;
      font-variant: small-caps;
      font-weight: 300;
+     letter-spacing: 2.5px;
      padding-top: 2px;
      padding-bottom: 5px;
      margin: 0px;

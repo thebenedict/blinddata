@@ -13,17 +13,19 @@
 <table>
     <thead>
         <tr>
-            <th>Series</th>
+            <th class="left">Series</th>
             <th># Datapoints</th>
+            <th>Completeness</th>
             <th>Points/Year (1960-2009)</th>
         </tr>
     </thead>
     <tbody>
         {% for line in table_data %}
             <tr>
-                <td>{{line.series_name}}</td>
+                <td class="left">{{line.series_name}}</td>
                 <td>{{line.num_datapoints|intcomma}}</td>
-                <td><img src="http://chart.apis.google.com/chart?chs=150x25&cht=ls&chco=0077CC&chf=bg,s,00000000&chds={{line.count_min}},{{line.count_max}}&chd=t:{% for c in line.count_list %}{% if not forloop.last %}{{c}},{% endif %}{% if forloop.last %}{{c}}{% endif %}{% endfor %}"></td>
+                <td>{{line.percent_complete}}%</td>
+                <td><img src="http://chart.apis.google.com/chart?chs=170x25&cht=ls&chco=0077CC&chf=bg,s,00000000&chds={{line.count_min}},{{line.count_max}}&chd=t:{% for c in line.count_list %}{% if not forloop.last %}{{c}},{% endif %}{% if forloop.last %}{{c}}{% endif %}{% endfor %}"></td>
             </tr>
         {% endfor %}
     </tbody>
