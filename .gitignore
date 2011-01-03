@@ -5,3 +5,4 @@ settings.py
 views.py.old
 blinddata.sqlite3
 /misc_data_utils
+git-perm-delete
