@@ -49,20 +49,78 @@ smalltext {
     padding-top: 10px;
 }
 
+#form-wrapper {
+     width: 752px;
+     margin-left:auto;
+     margin-right:auto; 
+}
+
 #filters {
      width: 750px;
      margin-left:auto;
      margin-right:auto;
      margin-top:10px;
+     margin-bottom: 5px;
      background-color: #FFFFFF;
      border: 1px solid #AAAAAA;
+}
+
+.year_entry {
+    width: 35px;
+    border: 0px;
+    font-weight: bold;
+}
+
+#slider {
+     width: 750px;
+     margin-left: auto;
+     margin-right: auto;
+     margin-top: 0px;
+     background-color: #FFFFFF;
+     border-top: 1px solid #AAAAAA;
+     border-left: 1px solid #AAAAAA;
+     border-right: 1px solid #AAAAAA;
+}
+
+#form-toggle {
+     background: #FFCC66;
+     border-top: 1px solid #AAAAAA;
+     border-left: 1px solid #AAAAAA;
+     border-right: 1px solid #AAAAAA;
+     width: 60px;
+     margin-top: 5px;
+     text-align: center;
+}
+
+#form-toggle a {
+     text-decoration: none;
+     font-family: sans-serif;
+     font-size: .85em;
+     color: black;
+}     
+
+.ui-slider .ui-slider-handle {
+     height: 14px;
+     width: 14px;
+}
+
+#slider-range {
+     width: 177px;
+     margin: 13px;
+     height: 5px;
+}
+
+#slider p {
+     float: left;
+     padding-right: 10px;
+     padding-left: 5px;
 }
 
 #content {
      width: 750px;
      margin-left: auto;
      margin-right: auto;
-     margin-top: 5px;
+     margin-top: 0px;
      background-color: #FFFFFF;
      border: 1px solid #AAAAAA;
 }
@@ -81,3 +139,18 @@ hr {
 table {
     width: 750px;
 }
+
+.country_detail_1 {
+    background-color: #B8D2EF;
+    border-bottom: 1px solid #AAAAAA;
+}
+
+.country_detail_2 {
+    background-color: #EFD4B8;
+    padding-top: 5px;
+}
+
+.bigplot {
+    border-bottom: 1px solid black;
+}
+

@@ -3,10 +3,7 @@
 {% block filters %}
     <p>
     <a href="/">Home</a> >
-    {% if map_data|length_is:"1" %}
-    <a href="/{{ map_data.0.1 }}/">{{ map_data.0.0 }}</a> <a href="/{{ table_data.0.safe_topic_name }}/{{ table_data.0.safe_subtopic_name }}/{{ table_data.0.safe_series_name }}/">(remove)</a> >
-    {% endif %}
-    <a href="{% if map_data|length_is:"1" %}/{{map_data.0.1}}{% endif %}/{{ table_data.0.safe_topic_name }}/">{{ table_data.0.topic_name }}</a> > <a href="{% if map_data|length_is:"1" %}/{{map_data.0.1}}{% endif %}/{{ table_data.0.safe_topic_name }}/{{ table_data.0.safe_subtopic_name }}/">{{  table_data.0.subtopic_name }}</a> > {{ table_data.0.series_name }}
+    <a href="/{{ series_row.topic_slug }}/">{{ series_row.topic }}</a> > <a href="/{{ series_row.topic_slug }}/{{ series_row.subtopic_slug }}/">{{  series_row.subtopic }}</a> > {{ series_row.series_name }}
     </p>
 {% endblock %}
 {% block content %}
@@ -14,20 +11,33 @@
     <thead>
         <tr>
             <th class="left">Series</th>
+            {% if series_row.row_data|length > 1 %}
+            <th>&nbsp</th>
+            {% endif %}
             <th># Datapoints</th>
             <th>Completeness</th>
-            <th>Points/Year (1960-2009)</th>
         </tr>
     </thead>
     <tbody>
-        {% for line in table_data %}
             <tr>
-                <td class="left">{{line.series_name}}</td>
-                <td>{{line.num_datapoints|intcomma}}</td>
-                <td>{{line.percent_complete}}%</td>
-                <td><img src="http://chart.apis.google.com/chart?chs=170x25&cht=ls&chco=0077CC&chf=bg,s,00000000&chds={{line.count_min}},{{line.count_max}}&chd=t:{% for c in line.count_list %}{% if not forloop.last %}{{c}},{% endif %}{% if forloop.last %}{{c}}{% endif %}{% endfor %}"></td>
+                <td class="left" rowspan="{{ series_row.row_data|length }}"><a href="http://data.worldbank.org/indicator/{{ series_row.series_code }}">{{series_row.series_name}}</a></td>
+                {% if series_row.row_data|length > 1 %}
+                    <td class='country_detail_1'>{{ series_row.row_data.0.country_code }}:</td>
+                {% endif %}
+                <td{% if series_row.row_data|length > 1 %} class='country_detail_1'{% endif %}> {{ series_row.row_data.0.num_datapoints|intcomma }}</td>
+                <td{% if series_row.row_data|length > 1 %} class='country_detail_1'{% endif %}>{{ series_row.row_data.0.percent_complete }}%</td>
             </tr>
-        {% endfor %}
+
+<!-- now print secondary line if needed-->
+{% if series_row.row_data|length > 1 %}
+     <td class='country_detail_2'>{{ series_row.row_data.1.country_code }}:</td>
+     <td class='country_detail_2'>{{ series_row.row_data.1.num_datapoints|intcomma }}</td>
+     <td class='country_detail_2'>{{ series_row.row_data.1.percent_complete }}%</td>
+{% endif %}
+            <tr>
+            <td colspan = "5" class = "bigplot"><img src="http://chart.apis.google.com/chart?chs=700x80&cht=bvg{% if series_row.row_data|length = 1 %}&chm=N,000000,0,-1,10{% endif %}&chco=0077CC{% if series_row.row_data|length > 1 %},EF8B24{% endif %}&chf=bg,s,00000000&chxt=t,y,x&chxs=0,000000,10,-1,t,CCCCCC|1,FFFFFF,0,0,_|2,FFFFFF,0,0,t,CCCCCC&chxtc=0,-100|2,-100&chds=0,{{ series_row.plot_parameters.max_value }}&chxr=0,{{ series_row.plot_parameters.plot_start_year }},{{ series_row.plot_parameters.plot_end_year }}|2,{{ series_row.plot_parameters.plot_start_year }},{{ series_row.plot_parameters.plot_end_year }}&chbh=r,0.5,1.5&chxl=0:{% for l in series_row.plot_parameters.labels %}|{{ l }}{% endfor %}|2:{% for l in series_row.plot_parameters.labels %}|{{ l }}{% endfor %}&chxp=0{% for p in series_row.plot_parameters.label_positions %},{{ p }}{% endfor %}|2{% for p in series_row.plot_parameters.label_positions %},{{ p }}{% endfor %}&chd=t:{% for c in series_row.row_data.0.plot_series %}{% if not forloop.last %}{{c.count}},{% endif %}{% if forloop.last %}{{c.count}}{% endif %}{% endfor %}{% if series_row.row_data|length > 1 %}|{% for c in series_row.row_data.1.plot_series %}{% if not forloop.last %}{{c.count}},{% endif %}{% if forloop.last %}{{c.count}}{% endif %}{% endfor %}{% endif %}"></td>
+            </tr>
+
     </tbody>
 </table>
 {% endblock %}

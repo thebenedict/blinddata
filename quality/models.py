@@ -2,57 +2,64 @@ from django.db import models
 from django.conf import settings
 
 class Country(models.Model):
-#    REGION_CHOICES = (
-#        ('aggregates', "Aggregates"),
-#        ('east_asia_pac', "East Asia & Pacific"),
-#        ('eur_central_asia', "Europe & Central Asia"),
-#        ('latin_am_car', "Latin America & Caribbean"),
-#        ('mena', "Middle East & North Africa"),
-#        ('n_amer', "North America"),
-#        ('s_asia', "South Asia"),
-#        ('ssa', "Sub-Saharan Africa"),
-#    )
-#    
-#    INCOME_CHOICES = (
-#        ('aggregates', "Aggregates"),
-#        ('high_non_oecd', "High income: nonOECD"),
-#        ('high_oecd', "High income: OECD"),
-#        ('upper_middle', "Upper middle income"),
-#        ('lower_middle', "Lower middle income"),
-#        ('low', "Low income"),
-#    )
-#    
-#    LENDING_CHOICES = (
-#        ('aggregates', "Aggregates"),
-#        ('blend', "Blend"),
-#        ('ibrd', "IBRD"),
-#        ('ida', "IDA"),
-#        ('not_classified', "Not classified"),
-#    )
+    REGION_CHOICES = (
+        ('aggregates', "Aggregates"),
+        ('east_asia_pac', "East Asia & Pacific"),
+        ('eur_central_asia', "Europe & Central Asia"),
+        ('lac', "Latin America & Caribbean"),
+        ('mena', "Middle East & North Africa"),
+        ('n_amer', "North America"),
+        ('s_asia', "South Asia"),
+        ('ssa', "Sub-Saharan Africa"),
+    )
+    
+    INCOME_CHOICES = (
+        ('aggregates', "Aggregates"),
+        ('high_non_oecd', "High income: nonOECD"),
+        ('high_oecd', "High income: OECD"),
+        ('upper_middle', "Upper middle income"),
+        ('lower_middle', "Lower middle income"),
+        ('low', "Low income"),
+    )
+    
+    prepopulated_fields = {"region_slug": ("region",),
+                           "income_group_slug": ("income_group",)}
     
     code = models.CharField(max_length=3, unique=True)
-    alpha2_code = models.CharField(max_length=3, blank=True, null=True)
-    name = models.CharField(max_length=100)
-    #region = models.CharField(max_length=20, choices=REGION_CHOICES)
-    #income_group = models.CharField(max_length=15, choices=INCOME_CHOICES)
-    #lending_category = models.CharField(max_length=10, choices=INCOME_CHOICES)
-    region = models.CharField(max_length=30)
-    income_group = models.CharField(max_length=25)
-    lending_category = models.CharField(max_length=20)
-    
+    alpha2_code = models.CharField(max_length=2, blank=True, null=True)
+    short_name = models.CharField(max_length=100)
+    long_name = models.CharField(max_length=100)
+    region = models.CharField(max_length=26)
+    region_slug = models.SlugField()
+    income_group = models.CharField(max_length=20)
+    income_group_slug = models.SlugField()
+
     def __unicode__(self):
         return self.code
         
 class Series(models.Model):
     code = models.CharField(max_length=25, unique = True)
+    code_slug = models.SlugField()
     name = models.CharField(max_length=150)
     topic = models.CharField(max_length=50)
-    sub1 = models.CharField(max_length=50)
-    sub2 = models.CharField(max_length=50, blank=True, null=True)
-    sub3 = models.CharField(max_length=50, blank=True, null=True)
+    topic_slug = models.SlugField()
+    short_def = models.TextField()
+    source = models.TextField()
+    WDI = models.BooleanField()
+    GDF = models.BooleanField()
+    sub1_name = models.CharField(max_length=50)
+    sub1_slug = models.SlugField()
+    sub2_name = models.CharField(max_length=50, blank=True, null=True)
+    sub2_slug = models.SlugField()
+    sub3_name = models.CharField(max_length=50, blank=True, null=True)
+    sub3_slug = models.SlugField()
     
     def __unicode__(self):
         return self.code
+
+    @staticmethod
+    def name_from_code_slug(self, code_slug):
+        return Series.objects.get(code_slug = code_slug).name
         
 class Element(models.Model):
     country = models.ForeignKey(Country, related_name='countries')

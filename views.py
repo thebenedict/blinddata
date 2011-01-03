@@ -1,377 +1,442 @@
 from django.shortcuts import render_to_response, get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.core.cache import cache
-from django.db.models import Count
-from quality.models import *
+from django.template.defaultfilters import slugify
+from django.db.models import Count, Max, Min
+from blinddata.forms import SessionSettingsForm
+from quality.models import Country, Series, Element
+import operator
 
 
-ONE_YEAR = 31536000
+ONE_YEAR = 31536000 #seconds
 #total number of years the data set covers
-NUM_YEARS = 50
+#TODO cache this
+endpoints = Element.objects.aggregate(Max('year'), Min('year'))
+NUM_YEARS = endpoints['year__max']-endpoints['year__min']+1
+NUM_COUNTRIES = Country.objects.exclude(region_slug='aggregates').count()
 
-def test(request):
-    return render_to_response('quality/test.html')
-
-def index(request, safe_topic = None, safe_subtopic = None, safe_series = None, alpha2_code = None):
-    #print ("In index")
-    #fetch full names from URL safe names - it would probably be better to store these in the database
-    topic = lookup_safe_name(safe_topic, 'topic')
-    subtopic = lookup_safe_name(safe_subtopic, 'subtopic')
-    series = lookup_safe_name(safe_series, 'series')
-    try:
-        country = Country.objects.get(alpha2_code = alpha2_code.upper())
-        safe_name_list = [safe_topic, safe_subtopic, safe_series, country.alpha2_code.lower()]
-        #print "I found country %s." % country.name
-    except:
-        country = None
-        safe_name_list = [safe_topic, safe_subtopic, safe_series]
-        #print "No country found using alpha2_code %s" % alpha2_code
-        
-    #generate the table or fetch from cache
-    table_cache_key = '_'.join(s for s in safe_name_list if s is not None) + '_table'
-    table_data = cache.get(table_cache_key)
-    #print "trying cache for %s" % table_cache_key
-    if table_data is None:
-        #print("Generating cache for %s.") % table_cache_key
-        table_data = get_table_data(topic, subtopic, series, country)
-        cache.set(table_cache_key, table_data, ONE_YEAR)
-    
-    #generate the map or fetch from cache    
-    map_cache_key = '_'.join(s for s in safe_name_list if s is not None) + '_map'
-    map_data = cache.get(map_cache_key)
-    if map_data is None:
-        #print("Generating cache for %s.") % map_cache_key
-        map_data = get_map_data(topic, subtopic, series, country)
-        cache.set(map_cache_key, map_data, ONE_YEAR)
-    
-    #return a page with the correct template
-    if series is not None:
-        return render_to_response('quality/series_detail.html', {"table_data": table_data, "map_data": map_data})
-    elif subtopic is not None:
-        return render_to_response('quality/subtopic_detail.html', {"table_data": table_data, "map_data": map_data})
-    elif topic is not None:
-        return render_to_response('quality/topic_detail.html', {"table_data": table_data, "map_data": map_data})
+def index(request):
+    if request.method == 'POST':
+        form = SessionSettingsForm(request.POST)
+        if form.is_valid():
+            request.session['start_year'] = form.cleaned_data['start_year']
+            request.session['end_year'] = form.cleaned_data['end_year']
+            return HttpResponseRedirect(request.META['HTTP_REFERER'])
     else:
-        return render_to_response('quality/index.html', {"table_data": table_data, "map_data": map_data})
+        form = SessionSettingsForm()
 
-def get_map_data(topic = None, subtopic = None, series = None, country = None):
+    query = get_query(request)
+
+    print "cache key is %s" % query['cache_key']
+
+    overview_table = cache.get(query['cache_key'] + "_table")
+    if overview_table is None:
+        print "Calling get_overview_table"
+        overview_table = get_overview_table(query)
+    map_data = cache.get(query['cache_key'] + "_map")
+    if map_data is None:
+        print "Calling get_map_data"
+        map_data = get_map_data(query)
+    
+    return render_to_response('quality/index.html', {"table": overview_table, "map_data": map_data, "session_settings_form": form})
+
+def topic_detail(request, topic_slug):
+    if request.method == 'POST':
+        form = SessionSettingsForm(request.POST)
+        if form.is_valid():
+            request.session['start_year'] = form.cleaned_data['start_year']
+            request.session['end_year'] = form.cleaned_data['end_year']
+            return HttpResponseRedirect(request.META['HTTP_REFERER'])
+    else:
+        form = SessionSettingsForm()
+
+    query = get_query(request, topic_slug)
+
+    print "cache key is %s" % query['cache_key']
+
+    topic_table = cache.get(query['cache_key'] + "_table")
+    if topic_table is None:
+        print "Calling get_topic_table"
+        topic_table = get_topic_table(query)
+    map_data = cache.get(query['cache_key'] + "_map")
+    if map_data is None:
+        print "Calling get_map_data"
+        map_data = get_map_data(query)
+    
+    return render_to_response('quality/topic_detail.html', {"table": topic_table, "map_data": map_data, "session_settings_form": form})
+
+def subtopic_detail(request, topic_slug, subtopic_slug):
+    if request.method == 'POST':
+        form = SessionSettingsForm(request.POST)
+        if form.is_valid():
+            request.session['start_year'] = form.cleaned_data['start_year']
+            request.session['end_year'] = form.cleaned_data['end_year']
+            return HttpResponseRedirect(request.META['HTTP_REFERER'])
+    else:
+        form = SessionSettingsForm()
+
+    query = get_query(request, topic_slug, subtopic_slug)
+
+    print "cache key is %s" % query['cache_key']
+
+    subtopic_table = cache.get(query['cache_key'] + "_table")
+    if subtopic_table is None:
+        print "Calling get_subtopic_table"
+        subtopic_table = get_subtopic_table(query)
+    map_data = cache.get(query['cache_key'] + "_map")
+    if map_data is None:
+        print "Calling get_map_data"
+        map_data = get_map_data(query)
+    
+    return render_to_response('quality/subtopic_detail.html', {"table": subtopic_table, "map_data": map_data, "session_settings_form": form})
+
+def series_detail(request, topic_slug, subtopic_slug, series_code_slug):
+    if request.method == 'POST':
+        form = SessionSettingsForm(request.POST)
+        if form.is_valid():
+            request.session['start_year'] = form.cleaned_data['start_year']
+            request.session['end_year'] = form.cleaned_data['end_year']
+            return HttpResponseRedirect(request.META['HTTP_REFERER'])
+    else:
+        form = SessionSettingsForm()
+
+    query = get_query(request, topic_slug, subtopic_slug, series_code_slug)
+
+    print "cache key is %s" % query['cache_key']
+
+    series_row = cache.get(query['cache_key'] + "_table")
+    if series_row is None:
+        print "Calling get_series_row_table"
+        series_row = get_series_row(query)
+    map_data = cache.get(query['cache_key'] + "_map")
+    if map_data is None:
+        print "Calling get_map_data"
+        map_data = get_map_data(query)
+    
+    return render_to_response('quality/series_detail.html', {"series_row": series_row, "map_data": map_data, "session_settings_form": form})
+
+def get_map_data(query):
     map_data=[]
 
-    if series is not None:
-        elements = Element.objects.filter(series__name = series).exclude(value = 0)
-    elif subtopic is not None:
-        elements = Element.objects.filter(series__sub1 = subtopic).exclude(value = 0) \
-        | Element.objects.filter(series__sub2 = subtopic).exclude(value = 0) \
-        | Element.objects.filter(series__sub3 = subtopic).exclude(value = 0)
-    elif topic is not None:
-        elements = Element.objects.filter(series__topic = topic).exclude(value = 0)
-    else:
-        elements = Element.objects.all().exclude(value = 0)
-    
-    if country is None:
-        #print "country is None"
-        countries = Country.objects.all()
-        mycountries = dict((c.alpha2_code, c.name) for c in countries if c.alpha2_code)
-    else:
-        #print "country is %s, alpha2_code is %s" % (country.name, country.alpha2_code)
-        countries = country
-        #odd that different syntax is needed in the following line for the one country case
-        mycountries = dict({country.alpha2_code: country.name})
-        elements = elements.filter(country = country)
-    
-    for elem in elements.values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = mycountries.keys()):
-        map_data.append((mycountries[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
-    
+    country_dict = dict((c.alpha2_code, c.short_name) for c in query['countries'] if c.alpha2_code)
+
+    for e in query['elements_by_country']:
+        for elem in e['elements'].values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = country_dict.keys()):
+            map_data.append((country_dict[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
+
+    cache.set(query['cache_key'] + '_map', map_data, ONE_YEAR)
     return map_data
-    
-def get_table_data(topic = None, subtopic = None, series = None, country = None):
-    if series is not None:
-        table_data = get_series_detail(topic, subtopic, series, country)
-    elif subtopic is not None:
-        table_data = get_subtopic_table(topic, subtopic, country)
-    elif topic is not None:
-        table_data = get_topic_table(topic, country)
-    else:
-        table_data = get_summary_table(country)
-    return table_data
 
-def get_summary_table(country):
+def get_overview_table(query):
     table_data = []
-    topics = Series.objects.values('topic').distinct()
-    
+    topics = Series.objects.values('topic', 'topic_slug').distinct()
     for t in topics:
-        topic_name = t['topic']
-        # create a machine readable 'safe' name to use in the detail url
-        safe_topic_name = make_safe_name(topic_name)
-        elements = Element.objects.filter(series__topic = topic_name).exclude(value = 0)
-        if country is not None:
-            elements = elements.filter(country = country)
-        count_list = get_count_list(elements)
-        num_series = Series.objects.filter(topic = topic_name).count()
-        num_datapoints = elements.count()
-        if country is not None:
-            num_countries = 1
-        else:
-            num_countries = Country.objects.count()
-        percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * NUM_YEARS) * 100))
-        count_list = get_count_list(elements)
-        try:
-            count_min = min(count_list)
-            count_max = max(count_list)
-        except:
-            count_min = 0
-            count_max = 0
-            
-        topic_dict = {"topic_name": topic_name, \
-                      "safe_topic_name": safe_topic_name, \
-                      "country": country, \
-                      "num_series": num_series, \
-                      "num_datapoints": num_datapoints, \
-                      "percent_complete": percent_complete, \
-                      "count_list": count_list, \
-                      "count_min": count_min, \
-                      "count_max": count_max}
-        table_data.append(topic_dict)
-    return table_data
-
-def get_topic_table(topic, country):
-    table_data = []
-    safe_topic_name = make_safe_name(topic)
-    topic_elements = Element.objects.filter(series__topic = topic)
-    #print "I'm hitting the DB for distinct subtopics"
-    subtopics = list(topic_elements.values('series__sub1').distinct()) \
-    + list(topic_elements.values('series__sub2').distinct()) \
-    + list(topic_elements.values('series__sub3').distinct())
-    
-    for subtopic in subtopics:
-        #ugh, I have no idea how to properly check for/remove blank values.
-        if subtopic.values()[0] is not unicode(''):
-            subtopic_name = subtopic.values()[0]
-            safe_subtopic_name = make_safe_name(subtopic_name)
-            elements = topic_elements.filter(series__sub1 = subtopic_name).exclude(value = 0) \
-            | topic_elements.filter (series__sub2 = subtopic_name).exclude(value = 0) \
-            | topic_elements.filter (series__sub3 = subtopic_name).exclude(value = 0)
-            
-            if country is not None:
-                elements = elements.filter(country = country)
-            
-            series = Series.objects.filter(sub1 = subtopic_name) \
-            | Series.objects.filter(sub2 = subtopic_name) \
-            | Series.objects.filter(sub3 = subtopic_name)
-         
-            num_series = series.count()
-            num_datapoints = elements.count()
-            if country is not None:
-                num_countries = 1
+        num_series = Series.objects.filter(topic_slug = t['topic_slug']).count()
+        country_topic_data = []
+        for e in query['elements_by_country']:
+            country_topic_elements = e['elements'].filter(series__topic_slug = t['topic_slug'])
+            num_datapoints = country_topic_elements.count()
+            if e['code'] == '':
+                num_countries = query['countries'].count()
             else:
-                num_countries = Country.objects.count()            
-            ave_datapoints = num_datapoints / num_series
-            percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * NUM_YEARS) * 100))
-            count_list = get_count_list(elements)        
-            
-            try:
-                count_min = min(count_list)
-                count_max = max(count_list)
-            except:
-                count_min = 0
-                count_max = 0
-            
-            subtopic_dict = {"topic_name": topic, \
-                             "subtopic_name": subtopic_name, \
-                             "safe_topic_name": safe_topic_name, \
-                             "safe_subtopic_name": safe_subtopic_name, \
-                             "country": country, \
-                             "num_series": num_series, \
-                             "num_datapoints": num_datapoints, \
-                             "percent_complete": percent_complete, \
-                             "count_list": count_list, \
-                             "count_min": count_min, \
-                             "count_max": count_max}
-            table_data.append(subtopic_dict)
-    return table_data
-    
-def get_subtopic_table(topic, subtopic, country):
-    table_data = []
-    safe_topic_name = make_safe_name(topic)
-    safe_subtopic_name = make_safe_name(subtopic)
-    subtopic_series = Series.objects.filter(sub1 = subtopic) \
-    | Series.objects.filter (sub2 = subtopic) \
-    | Series.objects.filter (sub3 = subtopic)
-    #print "I'm hitting the DB for distinct series for subtopic %s" % subtopic
-    for series in subtopic_series:
-        series_name = series.name
-        safe_series_name = make_safe_name(series_name)
-        series_elements = Element.objects.filter(series__name = series_name).exclude(value = 0)
+                num_countries = 1
 
-        if country is not None:
-            series_elements = series_elements.filter(country = country)
-                
-        num_datapoints = series_elements.count()
-        if country is not None:
+            ###DEBUGGING###
+            print "------------>Topic: %s for %s" % (t['topic'], e['code'])
+            print "num_series: %s" % num_series
+            print "num_datapoints: %s" % num_datapoints
+            print "num_countries: %s" % num_countries
+            print "query['num_years']: %s" % query['num_years']
+
+            percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * query['num_years']) * 100))
+
+            
+            country_topic_dict = {"country_code": e['code'], \
+                                  "elements": country_topic_elements, \
+                                  "num_datapoints": num_datapoints, \
+                                  "percent_complete": percent_complete, \
+                                  "plot_series": get_plot_series(country_topic_elements, query['start_year'], query['end_year'])}
+            country_topic_data.append(country_topic_dict)
+            plot_parameters = get_plot_parameters(country_topic_data, query['start_year'], query['end_year'])
+        row_dict = {"country_topic_data": country_topic_data, \
+                     "topic_name": t['topic'], \
+                     "topic_slug": t['topic_slug'], \
+                     "num_series": num_series, \
+                     "plot_parameters": plot_parameters}
+        table_data.append(row_dict)
+    overview_table = {'start_year': query['start_year'],
+                      'end_year': query['end_year'],
+                      'table_data': table_data}
+    print "calling cache.set for table"
+    cache.set(query['cache_key'] + '_table', overview_table, ONE_YEAR)
+    print "done with cache.set"
+    return overview_table
+
+def get_topic_table(query):
+    table_data = []
+    subtopic_list = []
+    print "query['elements'] is: %s " % query['elements']
+    for s in query['elements'].values('series__sub1_slug', 'series__sub1_name', \
+                                      'series__sub2_slug', 'series__sub2_name', \
+                                      'series__sub3_slug', 'series__sub3_name').distinct():
+        s1 = {'name':s['series__sub1_name'],'slug':s['series__sub1_slug']}
+        if s1 not in subtopic_list and s1['name'] != unicode(''):
+            subtopic_list.append(s1)
+        s2 = {'name':s['series__sub2_name'],'slug':s['series__sub2_slug']}
+        if s2 not in subtopic_list and s2['name'] != unicode(''):
+            subtopic_list.append(s2)
+        s3 = {'name':s['series__sub3_name'],'slug':s['series__sub3_slug']}
+        if s3 not in subtopic_list and s3['name'] != unicode(''):
+            subtopic_list.append(s3)
+
+    print "subtopic_list is %s" % subtopic_list
+    print "%s rows to calculate" % len(subtopic_list)
+    for s in subtopic_list:
+        num_series = (Series.objects.filter(sub1_slug = s['slug']) | \
+                      Series.objects.filter(sub2_slug = s['slug']) | \
+                      Series.objects.filter(sub3_slug = s['slug'])).count()
+        print "Calculating table data for subtopic %s" % s['name']
+        country_subtopic_data = []
+        for e in query['elements_by_country']:
+            country_subtopic_elements = e['elements'].filter(series__sub1_slug = s['slug']) | \
+                                        e['elements'].filter(series__sub2_slug = s['slug']) | \
+                                        e['elements'].filter(series__sub3_slug = s['slug'])
+            print "-->e['code'] is: %s" % e['code']
+            num_datapoints = country_subtopic_elements.count()
+            print "-->num_datapoints is: %s" % num_datapoints
+            if e['code'] == '': #all countries
+                num_countries = query['countries'].count()
+            else:
+                num_countries = 1
+
+            percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * query['num_years']) * 100))
+            country_subtopic_dict = {"country_code": e['code'], \
+                                     "elements": country_subtopic_elements, \
+                                     "num_datapoints": num_datapoints, \
+                                     "percent_complete": percent_complete, \
+                                     "plot_series": get_plot_series(country_subtopic_elements, query['start_year'], query['end_year'])}
+            country_subtopic_data.append(country_subtopic_dict)
+
+            plot_parameters = get_plot_parameters(country_subtopic_data, query['start_year'], query['end_year'])
+
+        row_dict = {"country_subtopic_data": country_subtopic_data, \
+                    "subtopic_name": s['name'], \
+                    "subtopic_slug": s['slug'], \
+                    "num_series": num_series, \
+                    "plot_parameters": plot_parameters}
+        table_data.append(row_dict)
+
+    topic_table = {'start_year': query['start_year'],
+                   'end_year': query['end_year'],
+                   'topic': query['topic'],
+                   'topic_slug': query['topic_slug'],
+                   'table_data': table_data}
+    cache.set(query['cache_key'] + '_table', topic_table, ONE_YEAR)
+    return topic_table
+
+def get_subtopic_table(query):
+    table_data = []
+    subtopic_series = Series.objects.filter(sub1_name = query['subtopic']) | \
+                      Series.objects.filter(sub2_name = query['subtopic']) | \
+                      Series.objects.filter(sub3_name = query['subtopic'])
+    
+    for s in subtopic_series:
+        print "Calculating table data for series %s" % s.name
+        country_series_data = []
+        for e in query['elements_by_country']:
+            country_series_elements = e['elements'].filter(series__code = s.code)
+            num_datapoints = country_series_elements.count()
+            if e['code'] == '':
+                num_countries = query['countries'].count()
+            else:
+                num_countries = 1
+
+            percent_complete = int(round(float(num_datapoints) / float(num_countries * query['num_years']) * 100))
+
+             ###DEBUGGING###
+            print "------------>series: %s" % s.name
+            print "num_datapoints: %s" % num_datapoints
+            print "num_countries: %s" % num_countries
+            print "query['num_years']: %s" % query['num_years']
+
+            country_series_dict = {"country_code": e['code'], \
+                                   "elements": country_series_elements, \
+                                   "num_datapoints": num_datapoints, \
+                                   "percent_complete": percent_complete, \
+                                   "plot_series": get_plot_series(country_series_elements, query['start_year'], query['end_year'])}
+            country_series_data.append(country_series_dict)
+
+        plot_parameters = get_plot_parameters(country_series_data, query['start_year'], query['end_year'])
+        row_dict = {"country_series_data": country_series_data, \
+                    "series_name": s.name, \
+                    "code_slug": s.code_slug, \
+                    "plot_parameters": plot_parameters}
+
+        table_data.append(row_dict)
+
+    subtopic_table = {'start_year': query['start_year'],
+                      'end_year': query['end_year'],
+                      'topic': query['topic'],
+                      'topic_slug': query['topic_slug'],
+                      'subtopic': query['subtopic'],
+                      'subtopic_slug': query['subtopic_slug'],
+                      'table_data': table_data}
+    cache.set(query['cache_key'] + '_table', subtopic_table, ONE_YEAR)
+    return subtopic_table
+################################################
+def get_series_row(query):
+    row_data = []
+    series = Series.objects.get(code_slug = query['series_code_slug'])
+    print "Calculating row data for series %s" % series.name
+    country_data = []
+    for e in query ['elements_by_country']:
+        country_elements = e['elements']
+        num_datapoints = country_elements.count()
+        if e['code'] == '':
+            num_countries = query['countries'].count()
+        else:
             num_countries = 1
-        else:
-            num_countries = Country.objects.count()
-        percent_complete = int(round(float(num_datapoints) / float(num_countries * NUM_YEARS) * 100))
-        
-        count_list = get_count_list(series_elements)
+        percent_complete = int(round(float(num_datapoints) / float(num_countries * query['num_years']) * 100))
+
+        country_dict = {"country_code": e['code'], \
+                        "elements": country_elements, \
+                        "num_datapoints": num_datapoints, \
+                        "percent_complete": percent_complete, \
+                        "plot_series": get_plot_series(country_elements, query['start_year'], query['end_year'])}
+        country_data.append(country_dict)
+
+    plot_parameters = get_plot_parameters(country_data, query['start_year'], query['end_year'])
+    
+                       
+    ###DEBUGGING###
+    print "------------>series: %s" % series.name
+    print "num_datapoints: %s" % num_datapoints
+    print "num_countries: %s" % num_countries
+    print "query['num_years']: %s" % query['num_years']
+
+    series_row = {'start_year': query['start_year'],
+                  'end_year': query['end_year'],
+                  'topic': query['topic'],
+                  'topic_slug': query['topic_slug'],
+                  'subtopic': query['subtopic'],
+                  'subtopic_slug': query['subtopic_slug'],
+                  'series_name': query['series_name'],
+                  'series_code': query['series_code'],
+                  'series_code_slug': query['series_code_slug'],
+                  'plot_parameters': plot_parameters,                
+                  'row_data': country_data}
+    cache.set(query['cache_key'] + '_table', series_row, ONE_YEAR)
+    return series_row
+
+def get_plot_series(elements, start_year, end_year):
+    counted = elements.values('year').annotate(count = Count('pk')).order_by('year')
+    plot_series =[]
+    for y in range(start_year,end_year + 1):
         try:
-            count_min = min(count_list)
-            count_max = max(count_list)
+            plot_series.append(counted.get(year=y))
         except:
-            count_min = 0
-            count_max = 0
-         
-        topic_dict = {"topic_name": topic, \
-                      "subtopic_name": subtopic, \
-                      "series_name": series_name, \
-                      "safe_topic_name": safe_topic_name, \
-                      "safe_subtopic_name": safe_subtopic_name, \
-                      "safe_series_name": safe_series_name, \
-                      "country": country, \
-                      "num_datapoints": num_datapoints, \
-                      "percent_complete": percent_complete, \
-                      "count_list": count_list, \
-                      "count_min": count_min, \
-                      "count_max": count_max}
-        table_data.append(topic_dict)
-    return table_data
+            plot_series.append({'count': 0, 'year': y})
+    return plot_series
 
-def get_series_detail(topic, subtopic, series, country):
-    table_data = []
-    safe_topic_name = make_safe_name(topic)
-    safe_subtopic_name = make_safe_name(subtopic)
-    safe_series_name = make_safe_name(series)
-    #print "I'm hitting the DB for distinct elements for series %s" % series    
-    series_elements = Element.objects.filter(series__name = series).exclude(value = 0)
-
-    if country is not None:
-        series_elements = series_elements.filter(country = country)
-
-    num_datapoints = series_elements.count()
-    if country is not None:
-        num_countries = 1
-    else:
-        num_countries = Country.objects.count()
-    percent_complete = int(round(float(num_datapoints) / float(num_countries * NUM_YEARS) * 100))    
-    count_list = get_count_list(series_elements)
-    
-    try:
-        count_min = min(count_list)
-        count_max = max(count_list)
-    except:
-        count_min = 0
-        count_max = 0    
-    
-    series_dict = {"topic_name": topic, \
-                  "subtopic_name": subtopic, \
-                  "series_name": series, \
-                  "safe_topic_name": safe_topic_name, \
-                  "safe_subtopic_name": safe_subtopic_name, \
-                  "safe_series_name": safe_series_name, \
-                  "num_datapoints": num_datapoints, \
-                  "percent_complete": percent_complete, \
-                  "count_list": count_list, \
-                  "count_min": count_min, \
-                  "count_max": count_max}
-    table_data.append(series_dict)
-    return table_data
-
-def get_count_list(elements):
-    count_list = []
-    counted_list = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))
-    if len(counted_list) == 0:
-        return count_list
-    #years without data are missing from the list but we want them as zero in the spark line, so now add them back in.
-    insert_point = 0
-    for yr in range(1960, counted_list[0]['year']):
-        counted_list.insert(insert_point, {'count': 0, 'year': long(yr)})
-        insert_point += 1
-    for c in counted_list:
-        if counted_list.index(c) != len(counted_list) - 1 and c['year'] != 2009:                     
-            if c['year'] + 1 != counted_list[counted_list.index(c) + 1]['year']:
-                counted_list.insert(counted_list.index(c) + 1, {'count': 0, 'year': c['year'] + 1})
-        else:
-            if  c['year'] != 2009:
-                for yr in range(c['year'] + 1, 2010):
-                    counted_list.append({'count': 0, 'year': long(yr)})    
-    for c in counted_list:
-        count_list.append(c['count'])
-    return count_list
-    
-def lookup_safe_name(safe_name, lookup_type = None):
-    if lookup_type is None:
-        return None
-    if lookup_type == 'topic':
-        for series in Series.objects.all():
-            sn = make_safe_name(series.topic)
-            if sn == safe_name:
-                return series.topic
-    if lookup_type == 'subtopic':
-        for series in Series.objects.all():
-            sn1 = make_safe_name(series.sub1)
-            if sn1 == safe_name:
-                return series.sub1
-            sn2 = make_safe_name(series.sub2)
-            if sn2 == safe_name:
-                return series.sub2
-            sn3 = make_safe_name(series.sub3)
-            if sn3 == safe_name:
-                return series.sub3
-    if lookup_type == 'series':
-        for series in Series.objects.all():
-            sn = make_safe_name(series.name)
-            if sn == safe_name:
-                return series.name
-    else:
-        return None
+def get_plot_parameters(data_list, start_year, end_year):
+    #find the max value in all plot_series
+    max_value = max(max(data_list, key=operator.itemgetter('plot_series'))['plot_series'], key=operator.itemgetter('count'))['count']
         
-def make_safe_name(name):
-    return ''.join(c.lower() for c in name if c.isalpha())
+   #make the plot labels
+    labels=[]
+    label_positions=[]
+    for y in range(start_year, end_year + 1):
+        if y % 10 == 0:
+            labels.append(y)
+            label_positions.append(y + 0.5)
+    if labels == []:
+        labels.append(start_year)
+        labels.append(end_year)
+        label_positions.append(start_year + 0.5)
+        label_positions.append(end_year + 0.5)
+    print "labels are %s" % labels
 
-def crawl(request):
-    #Crawl the whole site to generate cache. This is a 'run overnight' sort of thing.
-    topics_list = []
-    topics = Series.objects.values('topic').distinct()
-    for t in topics:
-        #print("generating topics list")
-        topics_list.append([t['topic'], make_safe_name(t['topic'])])
-	for topic_name, topic_safe_name in topics_list:
-		#print("requesting page for %s" % topic_safe_name)
-		page = index(request, topic_safe_name)
-		#print("filtering series for topic %s" % topic_safe_name)
-		topic_series = Series.objects.filter(topic = topic_name)
-		#would be much cleaner if subtopics were a many to many relationship
-		subtopics = list (topic_series.values('sub1').distinct()) \
-		+ list(topic_series.values('sub2').distinct()) \
-		+ list(topic_series.values('sub3').distinct())
-		subtopics_list = []
-		for sub in subtopics:
-			#print("Generating subtopics list for %s") % sub
-			if 'sub1' in sub and sub.values()[0] is not unicode(''):
-				subtopics_list.append([sub['sub1'], make_safe_name(sub['sub1'])])
-			if 'sub2' in sub and sub.values()[0] is not unicode(''):
-				subtopics_list.append([sub['sub2'], make_safe_name(sub['sub2'])])
-			if 'sub3' in sub and sub.values()[0] is not unicode(''):
-				subtopics_list.append([sub['sub3'], make_safe_name(sub['sub3'])])
-			subtopic_count = len(subtopics_list)
-		for sub_name, sub_safe_name in subtopics_list:
-			#print("%s subtopics remaining for %s" % (subtopic_count, topic_safe_name))               
-			#print("requesting page for %s/%s" % (topic_safe_name, sub_safe_name))
-			page = index(request, topic_safe_name, sub_safe_name)
-			#print("filtering series for subtopic %s" % sub_safe_name)
-			subtopic_series = Series.objects.filter(sub1 = sub_name) \
-			| Series.objects.filter(sub2 = sub_name) \
-			| Series.objects.filter(sub3 = sub_name)
-			#counter to monitor progress
-			series_count = subtopic_series.count()
-			for ss in subtopic_series:
-			#	print("%s series remaining for %s/%s" % (series_count, topic_safe_name, sub_safe_name))
-			#	print("requesting page for %s/%s/%s" % (topic_safe_name, sub_safe_name, make_safe_name(ss.name)))
-			#	page = index(request, topic_safe_name, sub_safe_name, make_safe_name(ss.name))
-				series_count -= 1
-			subtopic_count -=1
-    return HttpResponse("Generated Cache")
+    return {'max_value': max_value,
+            'labels': labels,
+            'label_positions': label_positions,
+            'plot_start_year': start_year,
+            'plot_end_year': end_year + 1}
 
-        
+'''Returns a cache key that is unique for a query;
+an underscore delimited string of session variable values'''
+def get_cache_key(request, topic_slug='', subtopic_slug='', series_slug=''):
+    print "In get_cache_key, topic_slug is %s" % topic_slug
+    cache_key = slugify('_'.join(str(v) for v in request.session.values()))
+    if topic_slug != '':
+        cache_key = cache_key + '_' + topic_slug
+    if subtopic_slug != '':
+        cache_key = cache_key + '_' + subtopic_slug
+    if series_slug != '':
+        cache_key = cache_key + '_' + series_slug
+    return cache_key
 
+'''Filters all Elements in the DB based on session varibles, returns a dict 
+with the following keys:
+    elements: a queryset containing elements needed for the table and map
+    start_year and end_year: the year range for the queryset
+    num_years: the number of years covered by the query (i.e. start_year - end_year + 1)
+    countries: a queryset of selected countries, default is all countries
+    cache_key: unique cache key for the query, from get_cache_key()'''
+def get_query(request, topic_slug='', subtopic_slug='', series_code_slug=''):
+    elements = Element.objects.exclude(value=0) \
+                              .exclude(country__region_slug='aggregates') \
+                              .filter(year__range=(request.session['start_year'], request.session['end_year']))
+    topic = subtopic = series_name = series_code = None
 
+    if topic_slug != '':
+        print "about to filter by topic %s" % topic_slug
+        elements = elements.filter(series__topic_slug = topic_slug)
+        #cache the result of the expensive query to get topic_name
+        #with another DB design this wouldn't be necessary
+        topic = cache.get(topic_slug + '_name')
+        if not topic:
+            topic = elements.values('series__topic').distinct()[0]['series__topic']
+            cache.set(topic_slug + '_name', topic, ONE_YEAR)
+
+    if subtopic_slug != '':
+        elements = elements.filter(series__sub1_slug = subtopic_slug) | \
+                   elements.filter(series__sub2_slug = subtopic_slug) | \
+                   elements.filter(series__sub3_slug = subtopic_slug)
+        #this is a hack to get the subtopic name. assumes that all elements already are filtered to have the same subtopic
+        subtopic = cache.get(subtopic_slug + '_name')
+        if not subtopic:
+            subtopic = max(elements[0].series.sub1_name, elements[0].series.sub2_name, elements[0].series.sub3_name)
+            cache.set(subtopic_slug + '_name', subtopic, ONE_YEAR)
+
+    if series_code_slug != '':
+        elements = elements.filter(series__code_slug = series_code_slug)
+        s = Series.objects.get(code_slug = series_code_slug)
+        series_name = s.name
+        series_code = s.code
+
+    geo_selections = request.session.get('geo_selections')
+    elements_by_country = []
+    if geo_selections is not None:
+        countries = Country.objects.filter(code__in=geo_selections)
+        for c in countries:
+            country_elements = elements.filter(country=c)
+            elements_by_country.append({'code': c.code, 'elements': country_elements})
+    else:
+        countries = Country.objects.exclude(region_slug='aggregates')
+        elements_by_country.append({'code': '', 'elements': elements})
+    num_years = request.session['end_year'] - request.session['start_year'] + 1
+    
+    return {'elements_by_country': elements_by_country,
+            'elements': elements, #redundant, but needed for the subtopic name hack
+            'topic': topic,
+            'topic_slug': topic_slug,
+            'subtopic': subtopic,
+            'subtopic_slug': subtopic_slug,
+            'series_name': series_name,
+            'series_code': series_code,
+            'series_code_slug': series_code_slug,
+            'start_year': request.session['start_year'],
+            'end_year': request.session['end_year'],
+            'num_years': num_years,
+            'countries': countries,
+            'cache_key': get_cache_key(request, topic_slug, subtopic_slug, series_code_slug)}

@@ -3,10 +3,7 @@
 {% block filters %}
     <p>
     <a href="/">Home</a> >
-    {% if map_data|length_is:"1" %}
-    <a href="/{{ map_data.0.1 }}/">{{ map_data.0.0 }}</a> <a href="/{{ table_data.0.safe_topic_name }}/{{ table_data.0.safe_subtopic_name }}/">(remove)</a> >
-    {% endif %}
-     <a href="{% if map_data|length_is:"1" %}/{{map_data.0.1}}{% endif %}/{{ table_data.0.safe_topic_name }}/">{{ table_data.0.topic_name }}</a> > {{  table_data.0.subtopic_name }}
+     <a href="/{{ table.topic_slug }}/">{{ table.topic }}</a> > {{ table.subtopic }}
     </p>
 {% endblock %}
 {% block content %}
@@ -14,20 +11,43 @@
     <thead>
         <tr>
             <th class="left">Series</th>
+            {% if table.table_data.0.country_series_data|length > 1 %}
+            <th>&nbsp</th>
+            {% endif %}
             <th># Datapoints</th>
             <th>Completeness</th>
-            <th>Points/Year (1960-2009)</th>
+            {% if table.table_data.0.country_series_data|length == 1 %}
+                <th>Points/Year ({{ table.start_year }}-{{ table.end_year }})</th>
+            {% endif %}
         </tr>
     </thead>
     <tbody>
-        {% for line in table_data %}
+        {% for line in table.table_data %}
             <tr>
-                <td class="left"><a href="{% if map_data|length_is:"1" %}/{{line.country.alpha2_code}}{% endif %}/{{line.safe_topic_name}}/{{line.safe_subtopic_name}}/{{line.safe_series_name}}/">{{line.series_name}}</a></td>
-                <td>{{line.num_datapoints|intcomma}}</td>
-                <td>{{line.percent_complete}}%</td>
-                <td><img src="http://chart.apis.google.com/chart?chs=170x25&cht=ls&chco=0077CC&chf=bg,s,00000000&chds={{line.count_min}},{{line.count_max}}&chd=t:{% for c in line.count_list %}{% if not forloop.last %}{{c}},{% endif %}{% if forloop.last %}{{c}}{% endif %}{% endfor %}"></td>
+                <td class="left" rowspan="{{ line.country_series_data|length }}"><a href="/{{table.topic_slug}}/{{table.subtopic_slug}}/{{line.code_slug}}/">{{line.series_name}}</a></td>
+               {% if line.country_series_data|length > 1 %}
+                    <td class='country_detail_1'>{{ line.country_series_data.0.country_code }}:</td>
+                {% endif %}
+                <td{% if line.country_series_data|length > 1 %} class='country_detail_1'{% endif %}> {{ line.country_series_data.0.num_datapoints|intcomma }}</td>
+                <td{% if line.country_series_data|length > 1 %} class='country_detail_1'{% endif %}>{{ line.country_series_data.0.percent_complete }}%</td>
+                {% if line.country_series_data|length == 1 %}
+                <td><img src="http://chart.apis.google.com/chart?chs=230x35&cht=bvg&chco=0077CC&chf=bg,s,00000000&chxt=t,y,x&chxs=0,{% if forloop.first %}000000{% else %}FFFFFF{% endif %},10,-1,t,CCCCCC|1,FFFFFF,0,0,_|2,FFFFFF,0,0,t,CCCCCC&chxtc=0,-100|2,-100&chds=0,{{ line.plot_parameters.max_value }}&chxr=0,{{ line.plot_parameters.plot_start_year }},{{ line.plot_parameters.plot_end_year }}|2,{{ line.plot_parameters.plot_start_year }},{{ line.plot_parameters.plot_end_year }}&chbh=r,0.5,1.5&chxl=0:{% for l in line.plot_parameters.labels %}|{{ l }}{% endfor %}|2:{% for l in line.plot_parameters.labels %}|{{ l }}{% endfor %}&chxp=0{% for p in line.plot_parameters.label_positions %},{{ p }}{% endfor %}|2{% for p in line.plot_parameters.label_positions %},{{ p }}{% endfor %}&chd=t:{% for c in line.country_series_data.0.plot_series %}{% if not forloop.last %}{{c.count}},{% endif %}{% if forloop.last %}{{c.count}}{% endif %}{% endfor %}"></td>
+                 {% endif %}
             </tr>
-        {% endfor %}
+
+<!-- now print secondary line and big table if needed-->
+{% if line.country_series_data|length > 1 %}
+     <td class='country_detail_2'>{{ line.country_series_data.1.country_code }}:</td>
+     <td class='country_detail_2'>{{ line.country_series_data.1.num_datapoints|intcomma }}</td>
+     <td class='country_detail_2'>{{ line.country_series_data.1.percent_complete }}%</td>
+              
+{% if line.country_series_data|length > 1 %}
+            <tr>
+            <td colspan = "5" class = "bigplot"><img src="http://chart.apis.google.com/chart?chs=700x80&cht=bvg&chco=0077CC,EF8B24&chf=bg,s,00000000&chxt=t,y,x&chxs=0,{% if forloop.first %}000000{% else %}FFFFFF{% endif %},10,-1,t,CCCCCC|1,FFFFFF,0,0,_|2,FFFFFF,0,0,t,CCCCCC&chxtc=0,-100|2,-100&chds=0,{{ line.plot_parameters.max_value }}&chxr=0,{{ line.plot_parameters.plot_start_year }},{{ line.plot_parameters.plot_end_year }}|2,{{ line.plot_parameters.plot_start_year }},{{ line.plot_parameters.plot_end_year }}&chbh=r,0.5,1.5&chxl=0:{% for l in line.plot_parameters.labels %}|{{ l }}{% endfor %}|2:{% for l in line.plot_parameters.labels %}|{{ l }}{% endfor %}&chxp=0{% for p in line.plot_parameters.label_positions %},{{ p }}{% endfor %}|2{% for p in line.plot_parameters.label_positions %},{{ p }}{% endfor %}&chd=t:{% for c in line.country_series_data.0.plot_series %}{% if not forloop.last %}{{c.count}},{% endif %}{% if forloop.last %}{{c.count}}{% endif %}{% endfor %}|{% for c in line.country_series_data.1.plot_series %}{% if not forloop.last %}{{c.count}},{% endif %}{% if forloop.last %}{{c.count}}{% endif %}{% endfor %}"></td>
+            </tr>
+{% endif %}
+{% endif %}
+{% endfor %}
     </tbody>
 </table>
 {% endblock %}

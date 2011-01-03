@@ -2,8 +2,56 @@
     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
+
+  <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/themes/base/jquery-ui.css" rel="stylesheet" type="text/css"/>
+  <link href="http://ajax.aspnetcdn.com/ajax/jquery.ui/1.8.7/themes/ui-lightness/jquery-ui.css" rel="stylesheet" type="text/css"/>
   <link rel="stylesheet" type="text/css" href="/static/css/style.css" />
-  <link rel="stylesheet" type="text/css" href="/static/css/tables.css" >  
+  <link rel="stylesheet" type="text/css" href="/static/css/tables.css" >
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js"></script>
+
+  <!--Jquery range slider-->
+	<script>
+	$(function() {
+		$( "#slider-range" ).slider({
+			range: true,
+			min: 1960,
+			max: 2009,
+                        {% if table %}
+			    values: [ {{ table.start_year }}, {{ table.end_year }} ],
+                        {% else %}
+                            values: [ {{ series_row.start_year }}, {{  series_row.end_year }} ],
+                        {% endif %}
+			slide: function( event, ui ) {
+				$( "#id_start_year" ).val( ui.values[ 0 ] );
+                                $( "#id_end_year" ).val( ui.values[ 1 ] );
+			}
+		});
+		$( "#id_start_year" ).val( $( "#slider-range" ).slider( "values", 0 ));
+                $( "#id_end_year" ).val( $( "#slider-range" ).slider( "values", 1 ));
+	});
+	</script>
+  <!--End Jquery range slider -->
+
+<!--Jquery div show/hide slider-->
+	<script>
+	$(function() {
+		// run the currently selected effect
+		function runEffect() {
+			var selectedEffect = "slide";
+			var options = {direction: 'down'};
+			$( "#slider" ).toggle( selectedEffect, options, 300 );
+		};
+		
+		// set effect from select menu value
+		$( "#form_button" ).click(function() {
+			runEffect();
+			return false;
+		});
+	});
+	</script>
+<!--End Jquery div show/hide slider-->
+
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
   <title>Blind Data</title>
   <script type="text/javascript" src="http://www.google.com/jsapi"></script>
@@ -84,20 +132,37 @@
     <div id="header">
         {% block header %}
             <h1>BLIND DATA</h1>
-            <h2>Quantity Browser for the WDI and GDF Datasets</h2>
+            <h2>Data Availablility in the WDI and GDF</h2>
             <hr>
         {% endblock %}
     </div>
 
     <div id="filters">
         {% block filters %}{% endblock %}
+    </div>
+
+
+<div id="form-wrapper">
+<div id="form-toggle">
+    <a href="#" id="form_button">Options</a>
+</div>
+<div>
+    <div id="slider">
+        <div id="slider-range"></div>
+        <form action="/" method="post">
+            {{ session_settings_form.as_p }}
+            <input type="submit" value ="Apply" />
+        </form>
     </div>  
+</div>
+</div>
 
     <div id="content">
+
         {% block content %}{% endblock %}
         <div id="visualization"></div>
     </div>
-    
+   
     <div id ="footer">
         {% block footer %}
             <smalltext>Blind Data was made in 2010 by Michael Benedict. Data courtesy of the

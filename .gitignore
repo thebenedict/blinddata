@@ -2,3 +2,6 @@
 settings.py
 /blinddata_cache
 /blinddata_cache_old
+views.py.old
+blinddata.sqlite3
+/misc_data_utils
