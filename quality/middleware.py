@@ -9,9 +9,9 @@ class BD_SessionMiddleware(object):
         exists = request.session.get('end_year')
         if not exists:
             request.session['end_year'] = 2009
-        #exists = request.session.get('geo_selections')
-        #if not exists:
-            #request.session['geo_selections'] = ['TZA']
+        exists = request.session.get('geo_selections')
+        if not exists:
+            request.session['geo_selections'] = [u'',u'']
         #request.session['geo_selections'] = ['TZA', 'MLI']
         #request.session['start_year'] = 2004
-        request.session['geo_selections'] = None
+        #request.session['geo_selections'] = None

@@ -21,9 +21,11 @@ def index(request):
         if form.is_valid():
             request.session['start_year'] = form.cleaned_data['start_year']
             request.session['end_year'] = form.cleaned_data['end_year']
+            request.session['geo_selections'] = [form.cleaned_data['country_one'], form.cleaned_data['country_two']]
+            print "['geo_selections'] is %s" % request.session['geo_selections']
             return HttpResponseRedirect(request.META['HTTP_REFERER'])
     else:
-        form = SessionSettingsForm()
+        form = SessionSettingsForm(initial={'country_one': request.session['geo_selections'][0], 'country_two': request.session['geo_selections'][1]})
 
     query = get_query(request)
 
@@ -32,6 +34,7 @@ def index(request):
 
     print "Calling get_overview_table"
     overview_table = get_overview_table(query)
+    print 'requesting cached map: %s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year'])
     map_data = cache.get('%s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year']))
     if map_data is None:
         print "Calling get_map_data"
@@ -45,9 +48,11 @@ def topic_detail(request, topic_slug):
         if form.is_valid():
             request.session['start_year'] = form.cleaned_data['start_year']
             request.session['end_year'] = form.cleaned_data['end_year']
+            request.session['geo_selections'] = [form.cleaned_data['country_one'], form.cleaned_data['country_two']]
+            print "['geo_selections'] is %s" % request.session['geo_selections']
             return HttpResponseRedirect(request.META['HTTP_REFERER'])
     else:
-        form = SessionSettingsForm()
+        form = SessionSettingsForm(initial={'country_one': request.session['geo_selections'][0], 'country_two': request.session['geo_selections'][1]})
 
     query = get_query(request, topic_slug)
 
@@ -57,6 +62,7 @@ def topic_detail(request, topic_slug):
     #if topic_table is None:
     print "Calling get_topic_table"
     topic_table = get_topic_table(query)
+    print 'requesting cached map: %s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year'])
     map_data = cache.get('%s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year']))
     if map_data is None:
         print "Calling get_map_data"
@@ -70,9 +76,11 @@ def subtopic_detail(request, topic_slug, subtopic_slug):
         if form.is_valid():
             request.session['start_year'] = form.cleaned_data['start_year']
             request.session['end_year'] = form.cleaned_data['end_year']
+            request.session['geo_selections'] = [form.cleaned_data['country_one'], form.cleaned_data['country_two']]
+            print "['geo_selections'] is %s" % request.session['geo_selections']
             return HttpResponseRedirect(request.META['HTTP_REFERER'])
     else:
-        form = SessionSettingsForm()
+        form = SessionSettingsForm(initial={'country_one': request.session['geo_selections'][0], 'country_two': request.session['geo_selections'][1]})
 
     query = get_query(request, topic_slug, subtopic_slug)
 
@@ -93,9 +101,11 @@ def series_detail(request, topic_slug, subtopic_slug, series_code_slug):
         if form.is_valid():
             request.session['start_year'] = form.cleaned_data['start_year']
             request.session['end_year'] = form.cleaned_data['end_year']
+            request.session['geo_selections'] = [form.cleaned_data['country_one'], form.cleaned_data['country_two']]
+            print "['geo_selections'] is %s" % request.session['geo_selections']
             return HttpResponseRedirect(request.META['HTTP_REFERER'])
     else:
-        form = SessionSettingsForm()
+        form = SessionSettingsForm({'country_one': request.session['geo_selections'][0], 'country_two': request.session['geo_selections'][1]})
 
     query = get_query(request, topic_slug, subtopic_slug, series_code_slug)
 
@@ -376,7 +386,7 @@ an underscore delimited string of session variable values'''
 def get_cache_key(request, topic_slug='', subtopic_slug='', series_slug=''):
     print "In get_cache_key, topic_slug is %s" % topic_slug
     #cache_key = slugify('_'.join(str(v) for v in request.session.values()))
-    cache_key = slugify(request.session.get('geo_slections', ""))
+    cache_key = slugify(request.session.get('geo_selections', ""))
     if topic_slug != '':
         cache_key = cache_key + '_' + topic_slug
     if subtopic_slug != '':
@@ -426,7 +436,7 @@ def get_query(request, topic_slug='', subtopic_slug='', series_code_slug=''):
 
     geo_selections = request.session.get('geo_selections')
     elements_by_country = []
-    if geo_selections is not None:
+    if geo_selections != [u'',u'']:
         countries = Country.objects.filter(code__in=geo_selections)
         for c in countries:
             country_elements = elements.filter(country=c)
