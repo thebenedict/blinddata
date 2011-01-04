@@ -13,6 +13,8 @@ urlpatterns = patterns('',
     #(r'^(?P<alpha2_code>\w{2})/(?P<safe_topic>\w+)/(?P<safe_subtopic>\w+)/$', 'blinddata.views.index'),
     #(r'^(?P<alpha2_code>\w{2})/(?P<safe_topic>\w+)/(?P<safe_subtopic>\w+)/(?P<safe_series>\w+)/$', 'blinddata.views.index'),
 
+    (r'^admin/', include(admin.site.urls)),
+
     # no filter
     (r'^$', 'blinddata.views.index'),
     (r'^(?P<topic_slug>[\w-]+)/$', 'blinddata.views.topic_detail'),
@@ -24,5 +26,5 @@ urlpatterns = patterns('',
     #(r'^map/$', 'blinddata.views.map'),
     (r'^static/(?P<path>.*)$', 'django.views.static.serve', 
         {'document_root': '/home/thebenedict/src/blinddata/static_files'}),
-    (r'^admin/', include(admin.site.urls)),
+
 )

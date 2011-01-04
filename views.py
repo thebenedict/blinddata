@@ -210,22 +210,23 @@ def get_topic_table(query):
                 num_countries = 1
 
             percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * query['num_years']) * 100))
+            print "|--->point a"
             country_subtopic_dict = {"country_code": e['code'], \
                                      "elements": country_subtopic_elements, \
                                      "num_datapoints": num_datapoints, \
                                      "percent_complete": percent_complete, \
                                      "plot_series": get_plot_series(country_subtopic_elements, query['start_year'], query['end_year'])}
             country_subtopic_data.append(country_subtopic_dict)
-
+            print "|--->point b"
             plot_parameters = get_plot_parameters(country_subtopic_data, query['start_year'], query['end_year'])
-
+            print "|--->point c"
         row_dict = {"country_subtopic_data": country_subtopic_data, \
                     "subtopic_name": s['name'], \
                     "subtopic_slug": s['slug'], \
                     "num_series": num_series, \
                     "plot_parameters": plot_parameters}
         table_data.append(row_dict)
-
+        print "|--->point d"
     topic_table = {'start_year': query['start_year'],
                    'end_year': query['end_year'],
                    'topic': query['topic'],
@@ -329,12 +330,13 @@ def get_series_row(query):
     return series_row
 
 def get_plot_series(elements, start_year, end_year):
-    counted = elements.values('year').annotate(count = Count('pk')).order_by('year')
-    plot_series =[]
+    plot_series = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))
+    #plot_series =[]
     for y in range(start_year,end_year + 1):
         try:
-            plot_series.append(counted.get(year=y))
+            plot_series.get(year=y)
         except:
+            print "appending a 0 for %s" % y
             plot_series.append({'count': 0, 'year': y})
     return plot_series
 
