@@ -32,7 +32,7 @@ def index(request):
 
     print "Calling get_overview_table"
     overview_table = get_overview_table(query)
-    map_data = cache.get(query['cache_key'] + "_map")
+    map_data = cache.get(query['cache_key'] + '_' + query['start_year'] + '_' + query['end_year'] + '_map')
     if map_data is None:
         print "Calling get_map_data"
         map_data = get_map_data(query)
@@ -57,7 +57,7 @@ def topic_detail(request, topic_slug):
     #if topic_table is None:
     print "Calling get_topic_table"
     topic_table = get_topic_table(query)
-    map_data = cache.get(query['cache_key'] + "_map")
+    map_data = cache.get(query['cache_key'] + '_' + query['start_year'] + '_' + query['end_year'] + '_map')
     if map_data is None:
         print "Calling get_map_data"
         map_data = get_map_data(query)
@@ -80,7 +80,7 @@ def subtopic_detail(request, topic_slug, subtopic_slug):
 
     print "Calling get_subtopic_table"
     subtopic_table = get_subtopic_table(query)
-    map_data = cache.get(query['cache_key'] + "_map")
+    map_data = cache.get(query['cache_key'] + '_' + query['start_year'] + '_' + query['end_year'] + '_map')
     if map_data is None:
         print "Calling get_map_data"
         map_data = get_map_data(query)
@@ -103,7 +103,7 @@ def series_detail(request, topic_slug, subtopic_slug, series_code_slug):
 
     print "Calling get_series_row_table"
     series_row = get_series_row(query)
-    map_data = cache.get(query['cache_key'] + "_map")
+    map_data = cache.get(query['cache_key'] + '_' + query['start_year'] + '_' + query['end_year'] + '_map')
     if map_data is None:
         print "Calling get_map_data"
         map_data = get_map_data(query)
@@ -119,7 +119,7 @@ def get_map_data(query):
         for elem in e['elements'].values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = country_dict.keys()):
             map_data.append((country_dict[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
 
-    cache.set(query['cache_key'] + '_map', map_data, ONE_YEAR)
+    cache.set(query['cache_key'] + '_' + query['start_year'] + '_' + query['end_year'] + '_map', map_data, ONE_YEAR)
     return map_data
 
 def get_overview_table(query):
