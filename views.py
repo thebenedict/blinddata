@@ -2,7 +2,7 @@ from django.shortcuts import render_to_response, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect
 from django.core.cache import cache
 from django.template.defaultfilters import slugify
-from django.db.models import Count, Max, Min
+from django.db.models import Count, Max, Min, Q
 from blinddata.forms import SessionSettingsForm
 from quality.models import Country, Series, Element
 import operator
@@ -29,10 +29,9 @@ def index(request):
 
     print "cache key is %s" % query['cache_key']
 
-    overview_table = cache.get(query['cache_key'] + "_table")
-    if overview_table is None:
-        print "Calling get_overview_table"
-        overview_table = get_overview_table(query)
+
+    print "Calling get_overview_table"
+    overview_table = get_overview_table(query)
     map_data = cache.get(query['cache_key'] + "_map")
     if map_data is None:
         print "Calling get_map_data"
@@ -54,10 +53,10 @@ def topic_detail(request, topic_slug):
 
     print "cache key is %s" % query['cache_key']
 
-    topic_table = cache.get(query['cache_key'] + "_table")
-    if topic_table is None:
-        print "Calling get_topic_table"
-        topic_table = get_topic_table(query)
+    #topic_table = cache.get(query['cache_key'] + "_table")
+    #if topic_table is None:
+    print "Calling get_topic_table"
+    topic_table = get_topic_table(query)
     map_data = cache.get(query['cache_key'] + "_map")
     if map_data is None:
         print "Calling get_map_data"
@@ -79,10 +78,8 @@ def subtopic_detail(request, topic_slug, subtopic_slug):
 
     print "cache key is %s" % query['cache_key']
 
-    subtopic_table = cache.get(query['cache_key'] + "_table")
-    if subtopic_table is None:
-        print "Calling get_subtopic_table"
-        subtopic_table = get_subtopic_table(query)
+    print "Calling get_subtopic_table"
+    subtopic_table = get_subtopic_table(query)
     map_data = cache.get(query['cache_key'] + "_map")
     if map_data is None:
         print "Calling get_map_data"
@@ -104,10 +101,8 @@ def series_detail(request, topic_slug, subtopic_slug, series_code_slug):
 
     print "cache key is %s" % query['cache_key']
 
-    series_row = cache.get(query['cache_key'] + "_table")
-    if series_row is None:
-        print "Calling get_series_row_table"
-        series_row = get_series_row(query)
+    print "Calling get_series_row_table"
+    series_row = get_series_row(query)
     map_data = cache.get(query['cache_key'] + "_map")
     if map_data is None:
         print "Calling get_map_data"
@@ -155,9 +150,10 @@ def get_overview_table(query):
                                   "elements": country_topic_elements, \
                                   "num_datapoints": num_datapoints, \
                                   "percent_complete": percent_complete, \
-                                  "plot_series": get_plot_series(country_topic_elements, query['start_year'], query['end_year'])}
+                                  "plot_series": get_plot_series(country_topic_elements, query['start_year'], query['end_year'], e['code'], t['topic_slug'])}
+
             country_topic_data.append(country_topic_dict)
-            plot_parameters = get_plot_parameters(country_topic_data, query['start_year'], query['end_year'])
+        plot_parameters = get_plot_parameters(country_topic_data, query['start_year'], query['end_year'])
         row_dict = {"country_topic_data": country_topic_data, \
                      "topic_name": t['topic'], \
                      "topic_slug": t['topic_slug'], \
@@ -167,42 +163,38 @@ def get_overview_table(query):
     overview_table = {'start_year': query['start_year'],
                       'end_year': query['end_year'],
                       'table_data': table_data}
-    print "calling cache.set for table"
-    cache.set(query['cache_key'] + '_table', overview_table, ONE_YEAR)
-    print "done with cache.set"
     return overview_table
 
 def get_topic_table(query):
     table_data = []
     subtopic_list = []
     print "query['elements'] is: %s " % query['elements']
-    for s in query['elements'].values('series__sub1_slug', 'series__sub1_name', \
-                                      'series__sub2_slug', 'series__sub2_name', \
-                                      'series__sub3_slug', 'series__sub3_name').distinct():
-        s1 = {'name':s['series__sub1_name'],'slug':s['series__sub1_slug']}
-        if s1 not in subtopic_list and s1['name'] != unicode(''):
-            subtopic_list.append(s1)
-        s2 = {'name':s['series__sub2_name'],'slug':s['series__sub2_slug']}
-        if s2 not in subtopic_list and s2['name'] != unicode(''):
-            subtopic_list.append(s2)
-        s3 = {'name':s['series__sub3_name'],'slug':s['series__sub3_slug']}
-        if s3 not in subtopic_list and s3['name'] != unicode(''):
-            subtopic_list.append(s3)
+    ones = query['elements'].values_list('series__sub1_name', 'series__sub1_slug').distinct()
+    twos = query['elements'].values_list('series__sub2_name', 'series__sub2_slug').distinct()
+    threes = query['elements'].values_list('series__sub3_name', 'series__sub3_slug').distinct()
+    for num in [ones, twos, threes]:
+        for name, slug in num:
+            if name != '':
+                subtopic_list.append({'name': name, 'slug': slug})
 
     print "subtopic_list is %s" % subtopic_list
     print "%s rows to calculate" % len(subtopic_list)
     for s in subtopic_list:
-        num_series = (Series.objects.filter(sub1_slug = s['slug']) | \
-                      Series.objects.filter(sub2_slug = s['slug']) | \
-                      Series.objects.filter(sub3_slug = s['slug'])).count()
+        print "point x" 
+        num_series = (Series.objects.filter(Q(sub1_slug = s['slug']) | \
+                                            Q(sub2_slug = s['slug']) | \
+                                            Q(sub3_slug = s['slug']))).count()
+        print "point y"
         print "Calculating table data for subtopic %s" % s['name']
         country_subtopic_data = []
         for e in query['elements_by_country']:
             country_subtopic_elements = e['elements'].filter(series__sub1_slug = s['slug']) | \
                                         e['elements'].filter(series__sub2_slug = s['slug']) | \
                                         e['elements'].filter(series__sub3_slug = s['slug'])
+            
+            plot_series = get_plot_series(country_subtopic_elements, query['start_year'], query['end_year'], e['code'],s['slug'])
             print "-->e['code'] is: %s" % e['code']
-            num_datapoints = country_subtopic_elements.count()
+            num_datapoints = sum(s['count'] for s in plot_series)
             print "-->num_datapoints is: %s" % num_datapoints
             if e['code'] == '': #all countries
                 num_countries = query['countries'].count()
@@ -215,7 +207,7 @@ def get_topic_table(query):
                                      "elements": country_subtopic_elements, \
                                      "num_datapoints": num_datapoints, \
                                      "percent_complete": percent_complete, \
-                                     "plot_series": get_plot_series(country_subtopic_elements, query['start_year'], query['end_year'])}
+                                     "plot_series": plot_series}
             country_subtopic_data.append(country_subtopic_dict)
             print "|--->point b"
             plot_parameters = get_plot_parameters(country_subtopic_data, query['start_year'], query['end_year'])
@@ -232,7 +224,6 @@ def get_topic_table(query):
                    'topic': query['topic'],
                    'topic_slug': query['topic_slug'],
                    'table_data': table_data}
-    cache.set(query['cache_key'] + '_table', topic_table, ONE_YEAR)
     return topic_table
 
 def get_subtopic_table(query):
@@ -264,7 +255,7 @@ def get_subtopic_table(query):
                                    "elements": country_series_elements, \
                                    "num_datapoints": num_datapoints, \
                                    "percent_complete": percent_complete, \
-                                   "plot_series": get_plot_series(country_series_elements, query['start_year'], query['end_year'])}
+                                   "plot_series": get_plot_series(country_series_elements, query['start_year'], query['end_year'], e['code'], s.code_slug)}
             country_series_data.append(country_series_dict)
 
         plot_parameters = get_plot_parameters(country_series_data, query['start_year'], query['end_year'])
@@ -282,9 +273,8 @@ def get_subtopic_table(query):
                       'subtopic': query['subtopic'],
                       'subtopic_slug': query['subtopic_slug'],
                       'table_data': table_data}
-    cache.set(query['cache_key'] + '_table', subtopic_table, ONE_YEAR)
     return subtopic_table
-################################################
+
 def get_series_row(query):
     row_data = []
     series = Series.objects.get(code_slug = query['series_code_slug'])
@@ -303,7 +293,7 @@ def get_series_row(query):
                         "elements": country_elements, \
                         "num_datapoints": num_datapoints, \
                         "percent_complete": percent_complete, \
-                        "plot_series": get_plot_series(country_elements, query['start_year'], query['end_year'])}
+                        "plot_series": get_plot_series(country_elements, query['start_year'], query['end_year'], e['code'], series.code_slug)}
         country_data.append(country_dict)
 
     plot_parameters = get_plot_parameters(country_data, query['start_year'], query['end_year'])
@@ -326,24 +316,40 @@ def get_series_row(query):
                   'series_code_slug': query['series_code_slug'],
                   'plot_parameters': plot_parameters,                
                   'row_data': country_data}
-    cache.set(query['cache_key'] + '_table', series_row, ONE_YEAR)
     return series_row
 
-def get_plot_series(elements, start_year, end_year):
-    plot_series = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))
-    #plot_series =[]
-    for y in range(start_year,end_year + 1):
-        try:
-            plot_series.get(year=y)
-        except:
-            print "appending a 0 for %s" % y
-            plot_series.append({'count': 0, 'year': y})
+def get_plot_series(elements, start_year, end_year, country_code, slug):
+    plot_series = []
+    start_year
+    end_year
+    for y in range(start_year, end_year + 1):
+        p = cache.get(slug + '_' + country_code + '_' + str(y))
+        if p is not None:
+            print "p is %s" % p
+            plot_series.append(p)
+        else:
+            print "p not cached for %s" % y
+            p = {'count': elements.filter(year=y).count(), 'year': y}
+            plot_series.append(p)
+            cache.set(slug + '_' + country_code + '_' + str(y), p, ONE_YEAR)
+                
+    #plot_series = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))
+    #print "|-->point a.1"
+    #for y in range(start_year,end_year + 1):
+    #    try:
+    #        plot_series.get(year=y)
+    #    except:
+    #        plot_series.append({'count': 0, 'year': y})
     return plot_series
 
 def get_plot_parameters(data_list, start_year, end_year):
+    print "In get_plot_parameters"
     #find the max value in all plot_series
-    max_value = max(max(data_list, key=operator.itemgetter('plot_series'))['plot_series'], key=operator.itemgetter('count'))['count']
-        
+    if data_list != []:
+        max_value = max(max(data_list, key=operator.itemgetter('plot_series'))['plot_series'], key=operator.itemgetter('count'))['count']
+    else:
+        max_value = 0
+      
    #make the plot labels
     labels=[]
     label_positions=[]
@@ -368,7 +374,8 @@ def get_plot_parameters(data_list, start_year, end_year):
 an underscore delimited string of session variable values'''
 def get_cache_key(request, topic_slug='', subtopic_slug='', series_slug=''):
     print "In get_cache_key, topic_slug is %s" % topic_slug
-    cache_key = slugify('_'.join(str(v) for v in request.session.values()))
+    #cache_key = slugify('_'.join(str(v) for v in request.session.values()))
+    cache_key = slugify(request.session.get('geo_slections', ""))
     if topic_slug != '':
         cache_key = cache_key + '_' + topic_slug
     if subtopic_slug != '':
