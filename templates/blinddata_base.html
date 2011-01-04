@@ -90,22 +90,24 @@
           //var rowindex = data.getFilteredRows([{column: 0, value: e['region']}]);
           //var country_code = data.getValue(rowindex[0],0);
       });*/
-      
+ 
+/* UNCOMMENT TO MAKE THE MAP CLICKABLE     
       google.visualization.events.addListener(geomap, 'regionClick', regionClickHandler);
       
       function regionClickHandler(e) {
         var rowindex = data.getFilteredRows([{column: 0, value: e['region']}]);
         var country_code = data.getValue(rowindex[0],0);
-        
+*/        
         //the above two lines work, the below two take two clicks on the map to do the same thing
         //I don't understand why
         //var country_data = geomap.getSelection();
         //var country_code = data.getValue(country_data[0].row,0);
-        
+/* UNCOMMENT TO MAKE THE MAP CLICKABLE        
         location.href = "http://" + location.host + '/' + country_code + location.pathname;
+
         geomap.setSelection();
       }
-      
+*/      
       geomap.draw(data, options);
     }
     
