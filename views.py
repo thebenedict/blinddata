@@ -168,7 +168,7 @@ def get_overview_table(query):
 def get_topic_table(query):
     table_data = []
     subtopic_list = []
-    print "query['elements'] is: %s " % query['elements']
+    print "starting ones twos threes"
     ones = query['elements'].values_list('series__sub1_name', 'series__sub1_slug').distinct()
     twos = query['elements'].values_list('series__sub2_name', 'series__sub2_slug').distinct()
     threes = query['elements'].values_list('series__sub3_name', 'series__sub3_slug').distinct()
@@ -176,7 +176,8 @@ def get_topic_table(query):
         for name, slug in num:
             if name != '':
                 subtopic_list.append({'name': name, 'slug': slug})
-
+    print "ending ones twos threes"
+ 
     print "subtopic_list is %s" % subtopic_list
     print "%s rows to calculate" % len(subtopic_list)
     for s in subtopic_list:
