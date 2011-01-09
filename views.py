@@ -122,9 +122,7 @@ def get_map_data(query):
 
     for e in query['elements_by_country']:
         for elem in e['elements'].values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = country_dict.keys()):
-            m = (country_dict[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count'])
-            print "appending %s to map_data" % m
-            map_data.append(m)
+            map_data.append((country_dict[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
 
     cache.set('%s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year']), map_data, ONE_YEAR)
     return map_data
