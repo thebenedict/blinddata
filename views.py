@@ -2,9 +2,9 @@ from django.shortcuts import render_to_response, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect
 from django.core.cache import cache
 from django.template.defaultfilters import slugify
-from django.db.models import Count, Max, Min, Q
+from django.db.models import Sum, Count, Max, Min, Q
 from blinddata.forms import SessionSettingsForm
-from quality.models import Country, Series, Element
+from quality.models import Country, Series, Element, CachedCount
 import operator
 
 
@@ -32,8 +32,8 @@ def index(request):
     print 'requesting cached map: %s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year'])
     map_data = cache.get('%s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year']))
     if map_data is None:
-        print "Calling get_map_data"
-        map_data = get_map_data(query)
+        print "Calling get_map_data_new"
+        map_data = get_map_data_new(query)
     
     return render_to_response('quality/index.html', {"table": overview_table, "map_data": map_data, "session_settings_form": form})
 
@@ -60,8 +60,8 @@ def topic_detail(request, topic_slug):
     print 'requesting cached map: %s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year'])
     map_data = cache.get('%s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year']))
     if map_data is None:
-        print "Calling get_map_data"
-        map_data = get_map_data(query)
+        print "Calling get_map_data_new"
+        map_data = get_map_data_new(query, query['topic_slug'])
     
     return render_to_response('quality/topic_detail.html', {"table": topic_table, "map_data": map_data, "session_settings_form": form})
 
@@ -122,10 +122,39 @@ def get_map_data(query):
 
     for e in query['elements_by_country']:
         for elem in e['elements'].values('country__alpha2_code').annotate(count = Count('pk')).filter(country__alpha2_code__in = country_dict.keys()):
-            map_data.append((country_dict[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count']))
+            m = (country_dict[elem['country__alpha2_code']], elem['country__alpha2_code'], elem['count'])
+            print "appending %s to map_data" % m
+            map_data.append(m)
 
     cache.set('%s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year']), map_data, ONE_YEAR)
     return map_data
+
+def get_map_data_new(query, slug=None):
+    map_data=[]
+
+    for c in query['countries']:
+        if c.alpha2_code:
+            if slug is not None:
+                print "slug is %s" % slug
+                print "country is %s" % c
+                print "start_year is %s" % query['start_year']
+                print "end_year is %s" % query['end_year']
+                counts = CachedCount.objects.filter(slug=slug).filter(country=c)\
+                    .filter(year__range=(query['start_year'], query['end_year']))
+            else:
+                print "country is %s" % c
+                print "short name is %s" % c.short_name
+                print "start_year is %s" % query['start_year']
+                print "end_year is %s" % query['end_year']
+                counts = CachedCount.objects.filter(country_code=c).filter(year__range=(query['start_year'], query['end_year']))
+            value = counts.aggregate(Sum('count'))['count__sum']
+            print ("counts.aggregate(Sum('count')) is %s" % counts.aggregate(Sum('count')))
+            #print ("appending %s, %s, %s to map_data" % (c.short_name, c.alpha2_code, value))
+            map_data.append((c.short_name, c.alpha2_code, value))
+
+    cache.set('%s_%s_%s_map' % (query['cache_key'], query['start_year'], query['end_year']), map_data, ONE_YEAR)
+    return map_data
+
 
 def get_overview_table(query):
     table_data = []
@@ -135,12 +164,15 @@ def get_overview_table(query):
         country_topic_data = []
         for e in query['elements_by_country']:
             country_topic_elements = e['elements'].filter(series__topic_slug = t['topic_slug'])
-            #num_datapoints = country_topic_elements.count()
-            num_datapoints = len(country_topic_elements)
             if e['code'] == '':
                 num_countries = query['countries'].count()
+                code = 'ALL'
             else:
                 num_countries = 1
+                code = e['code']
+
+            plot_series = get_plot_series(t['topic_slug'], code, query['start_year'], query['end_year'])
+            num_datapoints = sum(s['count'] for s in plot_series)
 
             ###DEBUGGING###
             print "------------>Topic: %s for %s" % (t['topic'], e['code'])
@@ -156,7 +188,7 @@ def get_overview_table(query):
                                   "elements": country_topic_elements, \
                                   "num_datapoints": num_datapoints, \
                                   "percent_complete": percent_complete, \
-                                  "plot_series": get_plot_series(country_topic_elements, query['start_year'], query['end_year'], e['code'], t['topic_slug'])}
+                                  "plot_series": plot_series}
 
             country_topic_data.append(country_topic_dict)
         plot_parameters = get_plot_parameters(country_topic_data, query['start_year'], query['end_year'])
@@ -198,15 +230,15 @@ def get_topic_table(query):
             country_subtopic_elements = e['elements'].filter(series__sub1_slug = s['slug']) | \
                                         e['elements'].filter(series__sub2_slug = s['slug']) | \
                                         e['elements'].filter(series__sub3_slug = s['slug'])
-            
-            plot_series = get_plot_series(country_subtopic_elements, query['start_year'], query['end_year'], e['code'],s['slug'])
-            print "-->e['code'] is: %s" % e['code']
-            num_datapoints = sum(s['count'] for s in plot_series)
-            print "-->num_datapoints is: %s" % num_datapoints
-            if e['code'] == '': #all countries
+            if e['code'] == '':
                 num_countries = query['countries'].count()
+                code = 'ALL'
             else:
                 num_countries = 1
+                code = e['code']
+            
+            plot_series = get_plot_series(s['slug'], code, query['start_year'], query['end_year'])
+            num_datapoints = sum(s['count'] for s in plot_series)
 
             percent_complete = int(round(float(num_datapoints) / float(num_series * num_countries * query['num_years']) * 100))
             print "|--->point a"
@@ -262,7 +294,7 @@ def get_subtopic_table(query):
                                    "elements": country_series_elements, \
                                    "num_datapoints": num_datapoints, \
                                    "percent_complete": percent_complete, \
-                                   "plot_series": get_plot_series(country_series_elements, query['start_year'], query['end_year'], e['code'], s.code_slug)}
+                                   "plot_series": calculate_plot_series(country_series_elements, query['start_year'], query['end_year'], e['code'], s.code_slug)}
             country_series_data.append(country_series_dict)
 
         plot_parameters = get_plot_parameters(country_series_data, query['start_year'], query['end_year'])
@@ -300,7 +332,7 @@ def get_series_row(query):
                         "elements": country_elements, \
                         "num_datapoints": num_datapoints, \
                         "percent_complete": percent_complete, \
-                        "plot_series": get_plot_series(country_elements, query['start_year'], query['end_year'], e['code'], series.code_slug)}
+                        "plot_series": calculate_plot_series(country_elements, query['start_year'], query['end_year'], e['code'], series.code_slug)}
         country_data.append(country_dict)
 
     plot_parameters = get_plot_parameters(country_data, query['start_year'], query['end_year'])
@@ -325,35 +357,56 @@ def get_series_row(query):
                   'row_data': country_data}
     return series_row
 
-def get_plot_series(elements, start_year, end_year, country_code, slug):
+def get_plot_series(slug, country_code, start_year, end_year):
     plot_series = []
-    start_year
-    end_year
-    for y in range(start_year, end_year + 1):
-        p = cache.get(slug + '_' + country_code + '_' + str(y))
-        if p is not None:
-            print "p is %s" % p
-            plot_series.append(p)
-        else:
-            print "p not cached for %s" % y
-            p = {'count': elements.filter(year=y).count(), 'year': y}
-            plot_series.append(p)
-            cache.set(slug + '_' + country_code + '_' + str(y), p, ONE_YEAR)
-                
-    #plot_series = list(elements.values('year').annotate(count = Count('pk')).order_by('year'))
-    #print "|-->point a.1"
-    #for y in range(start_year,end_year + 1):
-    #    try:
-    #        plot_series.get(year=y)
-    #    except:
-    #        plot_series.append({'count': 0, 'year': y})
+    for y in range(start_year, end_year +1):
+        cc = CachedCount.objects.get(slug=slug, country__code=country_code, year=y)
+        plot_series.append({'count': cc.count, 'year': y})
     return plot_series
+
+def calculate_plot_series(elements, start_year, end_year, country_code, slug):
+    plot_series = []
+    print("requesting cached plot series...")
+    for y in range(start_year, end_year + 1):
+        print("getting cache with string %s" % (slug + '_' + country_code + '_' + str(y)))
+        p = cache.get(slug + '_' + country_code + '_' + str(y))
+        plot_series.append(p)
+    print("Cached plot series is %s" % plot_series)
+    if None in plot_series:
+        plot_series = []
+        print("full plot not cached, caclulating...")
+        plot_series_queryset = elements.values('year').annotate(count = Count('pk')).order_by('year')
+        print("plot_series from annotate is %s" % plot_series_queryset)
+        for y in range(start_year, end_year + 1):
+            try:
+                p = plot_series_queryset.get(year=y)
+                plot_series.append(p)
+                print("setting cache with string %s" % (slug + '_' + country_code + '_' + str(y)))
+                cache.set(slug + '_' + country_code + '_' + str(y), p, ONE_YEAR)
+            except:
+                print("setting a zero point with string %s" % (slug + '_' + country_code + '_' + str(y)))
+                p = {'count': 0, 'year': y}
+                plot_series.append(p)
+                cache.set(slug + '_' + country_code + '_' + str(y), p, ONE_YEAR)
+    return plot_series
+
+    #    if p is not None:
+    #        print "p is %s" % p
+    #        plot_series.append(p)
+    #    else:
+    #        print "p not cached for %s" % y
+    #        p = {'count': elements.filter(year=y).count(), 'year': y}
+    #        plot_series.append(p)
+    #        cache.set(slug + '_' + country_code + '_' + str(y), p, ONE_YEAR)
+                
 
 def get_plot_parameters(data_list, start_year, end_year):
     print "In get_plot_parameters"
     #find the max value in all plot_series
     if data_list != []:
+        print "    doing max value calc..."
         max_value = max(max(data_list, key=operator.itemgetter('plot_series'))['plot_series'], key=operator.itemgetter('count'))['count']
+        print "    done"
     else:
         max_value = 0
       
@@ -399,9 +452,10 @@ with the following keys:
     countries: a queryset of selected countries, default is all countries
     cache_key: unique cache key for the query, from get_cache_key()'''
 def get_query(request, topic_slug='', subtopic_slug='', series_code_slug=''):
-    elements = Element.objects.exclude(value=0) \
-                              .exclude(country__region_slug='aggregates') \
-                              .filter(year__range=(request.session['start_year'], request.session['end_year']))
+    elements = Element.objects.select_related() \
+        .exclude(value=0) \
+        .exclude(country__region_slug='aggregates') \
+        .filter(year__range=(request.session['start_year'], request.session['end_year']))
     topic = subtopic = series_name = series_code = None
 
     if topic_slug != '':

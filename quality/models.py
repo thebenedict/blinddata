@@ -69,3 +69,9 @@ class Element(models.Model):
     
     def __unicode__(self):
         return "%s:%s:%s" % (self.country.code, self.series.code, self.year)
+
+class CachedCount(models.Model):
+    slug = models.CharField(max_length=50)
+    year = models.IntegerField(max_length=4)
+    country = models.ForeignKey(Country)
+    count = models.IntegerField(max_length=7)
