@@ -13,5 +13,5 @@ class BD_SessionMiddleware(object):
         if not exists:
             request.session['geo_selections'] = [u'',u'']
         #request.session['geo_selections'] = ['TZA', 'MLI']
-        #request.session['start_year'] = 2004
+        request.session['start_year'] = 2004
         #request.session['geo_selections'] = None

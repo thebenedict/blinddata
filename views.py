@@ -9,11 +9,6 @@ import operator
 
 
 ONE_YEAR = 31536000 #seconds
-#total number of years the data set covers
-#TODO cache this
-endpoints = Element.objects.aggregate(Max('year'), Min('year'))
-NUM_YEARS = endpoints['year__max']-endpoints['year__min']+1
-NUM_COUNTRIES = Country.objects.exclude(region_slug='aggregates').count()
 
 def index(request):
     if request.method == 'POST':
@@ -140,7 +135,8 @@ def get_overview_table(query):
         country_topic_data = []
         for e in query['elements_by_country']:
             country_topic_elements = e['elements'].filter(series__topic_slug = t['topic_slug'])
-            num_datapoints = country_topic_elements.count()
+            #num_datapoints = country_topic_elements.count()
+            num_datapoints = len(country_topic_elements)
             if e['code'] == '':
                 num_countries = query['countries'].count()
             else:
