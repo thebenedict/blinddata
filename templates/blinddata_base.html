@@ -39,7 +39,7 @@
 		// run the currently selected effect
 		function runEffect() {
 			var selectedEffect = "slide";
-			var options = {direction: 'down'};
+			var options = {mode: 'show'};
 			$( "#slider" ).toggle( selectedEffect, options, 300 );
 		};
 		
@@ -159,7 +159,7 @@
     
     </div>  
 
-</div>-
+</div>
 
     <div id="content">
 
@@ -169,9 +169,8 @@
    
     <div id ="footer">
         {% block footer %}
-            <smalltext>Blind Data was made in 2010 by Michael Benedict. Data courtesy of the
-             World Bank Group. For more information see <a href ="http://data.worldbank.org">http://data.worldbank.org</a>
-             <br/>Send questions, comments, and bugs to thebenedict at gmail.
+            <smalltext>Blind Data was made in 2010 and 2011 by Michael Benedict. Data courtesy of the
+             <a href="http://worldbank.org">World Bank Group</a>, provided under these <a href="http://www.worldbank.org/terms-datasets"> terms of use</a>.<br/> For more information see <a href ="http://data.worldbank.org">http://data.worldbank.org</a>, and send questions, comments, and bugs to thebenedict at gmail.
              <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/3.0/us/"><img alt="Creative Commons License" style="border-width:0" src="http://i.creativecommons.org/l/by-nc-sa/3.0/us/80x15.png" /></a>
         {% endblock %}
     </div>

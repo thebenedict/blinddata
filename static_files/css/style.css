@@ -81,6 +81,7 @@ smalltext {
      border-top: 1px solid #AAAAAA;
      border-left: 1px solid #AAAAAA;
      border-right: 1px solid #AAAAAA;
+     display: none;
 }
 
 #form-toggle {
